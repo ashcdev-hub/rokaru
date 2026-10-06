@@ -2,8 +2,7 @@
   <img src="assets/rokaru.png" alt="rokaru" width="420">
 </p>
 
-Private local harness for **oMLX** — an agentic terminal UI, like a small
-opencode, that only ever talks to your own machine.
+Private local TUI harness for **oMLX**
 
 ## Privacy & security
 

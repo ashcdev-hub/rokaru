@@ -1,6 +1,18 @@
 /** @jsxImportSource @opentui/solid */
+import { Show } from "solid-js"
 import { THEME, HEX, sg } from "../theme"
-import { contextPercent, metrics, model, modelLimit, promptTokens, showReasoning, status, workspace } from "../store"
+import {
+  allowedTools,
+  contextPercent,
+  metrics,
+  model,
+  modelLimit,
+  promptTokens,
+  showReasoning,
+  status,
+  webEnabled,
+  workspace,
+} from "../store"
 import { bar, formatCompact, formatInt, formatRate, formatSeconds } from "../metrics"
 import { VERSION } from "../version"
 
@@ -83,10 +95,15 @@ export function Sidebar(props: { width?: number }) {
         <Panel title="Session">
           <text fg={THEME.dim}>{`state ${status()}`}</text>
           <text fg={THEME.dim}>{workspace() || ""}</text>
+          <Show when={allowedTools().length > 0}>
+            <text fg={THEME.warn}>{`auto-allow ${allowedTools().join(" ")}`}</text>
+          </Show>
         </Panel>
 
         <Panel title="Privacy">
-          <text fg={THEME.good}>loopback only</text>
+          <Show when={webEnabled()} fallback={<text fg={THEME.good}>loopback only</text>}>
+            <text fg={THEME.warn}>web: read-only</text>
+          </Show>
           <text fg={THEME.good}>ram-only session</text>
           <text fg={THEME.dim}>wiped on exit</text>
         </Panel>

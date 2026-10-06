@@ -26,4 +26,7 @@ ROKARU_WORKSPACE="$PWD"
 export ROKARU_WORKSPACE
 cd "$ROOT"
 
+# No core dumps: a crash must not spill session memory to disk.
+ulimit -c 0 2>/dev/null || true
+
 exec bun run "$ROOT/src/index.tsx" "$@"

@@ -20,6 +20,8 @@ export const THEME = {
   accent: HEX.accent,
   blue: HEX.blue,
   tool: HEX.tool,
+  panelBg: "#0f1319",
+  panelBorder: "#2b3543",
 } as const
 
 // OpenTUI colours inline text runs via the `style` prop (`style={{ fg }}`); the

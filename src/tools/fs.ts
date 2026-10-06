@@ -1,5 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs"
 import { dirname, isAbsolute, join, relative, resolve } from "node:path"
+import { diffLines } from "../diff"
+import { isSensitivePath } from "../sensitive"
 import type { ToolContext, ToolDef } from "./types"
 
 const MAX_READ_CHARS = 200_000
@@ -25,6 +27,7 @@ function assertWritable(ctx: ToolContext, target: string): void {
 
 function readFileText(ctx: ToolContext, input: string): string {
   const target = resolvePath(ctx, input ?? ".")
+  if (isSensitivePath(target)) throw new Error(`refused: ${target} is in a protected location`)
   const stat = statSync(target)
   if (stat.isDirectory()) throw new Error(`${target} is a directory`)
   const text = readFileSync(target, "utf8")
@@ -58,6 +61,7 @@ export const listDirTool: ToolDef = {
   },
   async run(args, ctx) {
     const target = resolvePath(ctx, String(args?.path ?? "."))
+    if (isSensitivePath(target)) throw new Error(`refused: ${target} is in a protected location`)
     const entries = readdirSync(target, { withFileTypes: true })
     return (
       entries
@@ -83,9 +87,18 @@ export const writeFileTool: ToolDef = {
   async run(args, ctx) {
     const target = resolvePath(ctx, String(args?.path ?? ""))
     assertWritable(ctx, target)
-    mkdirSync(dirname(target), { recursive: true })
     const content = String(args?.content ?? "")
+    const existed = existsSync(target)
+    const previous = existed ? readFileSync(target, "utf8") : ""
+    mkdirSync(dirname(target), { recursive: true })
     writeFileSync(target, content)
+    try {
+      ctx.onDiff?.(
+        existed ? diffLines(previous, content) : content.split("\n").map((text) => ({ kind: "add" as const, text })),
+      )
+    } catch {
+      // diff is best-effort
+    }
     return `wrote ${content.length} bytes to ${target}`
   },
 }
@@ -119,6 +132,11 @@ export const editFileTool: ToolDef = {
     }
     const updated = replaceAll ? original.split(oldString).join(newString) : original.replace(oldString, newString)
     writeFileSync(target, updated)
+    try {
+      ctx.onDiff?.(diffLines(original, updated))
+    } catch {
+      // diff is best-effort
+    }
     return `replaced ${replaceAll ? count : 1} occurrence(s) in ${target}`
   },
 }
@@ -140,6 +158,7 @@ export const globTool: ToolDef = {
     const glob = new Bun.Glob(String(args?.pattern ?? "*"))
     const out: string[] = []
     for (const match of glob.scanSync({ cwd: base, onlyFiles: true })) {
+      if (isSensitivePath(join(base, match))) continue
       out.push(match)
       if (out.length >= MAX_MATCHES) break
     }
@@ -173,6 +192,7 @@ export const grepTool: ToolDef = {
     for (const rel of glob.scanSync({ cwd: base, onlyFiles: true })) {
       if (results.length >= MAX_MATCHES) break
       const full = join(base, rel)
+      if (isSensitivePath(full)) continue
       try {
         if (statSync(full).size > 1_000_000) continue
         const text = readFileSync(full, "utf8")

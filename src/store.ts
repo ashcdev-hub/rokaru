@@ -12,12 +12,16 @@ export type Part =
       args: string
       status: "pending" | "running" | "ok" | "error" | "denied"
       result: string
+      diff?: { kind: "add" | "del" | "ctx"; text: string }[]
     }
 
 export interface UIMessage {
   id: string
-  role: "user" | "assistant"
+  role: "user" | "assistant" | "info"
   parts: Part[]
+  images?: string[]
+  thinkingMs?: number
+  thinkingExpanded?: boolean
 }
 
 export type Status = "idle" | "thinking" | "streaming" | "tool" | "permission" | "error"
@@ -36,11 +40,15 @@ export const [model, setModel] = createSignal("")
 export const [models, setModels] = createSignal<ModelInfo[]>([])
 export const [modelLimit, setModelLimit] = createSignal(0)
 export const [error, setError] = createSignal<string | undefined>(undefined)
-export const [showReasoning, setShowReasoning] = createSignal(true)
+export const [showReasoning, setShowReasoning] = createSignal(false)
+export const [expandTools, setExpandTools] = createSignal(false)
+export const [inputValue, setInputValue] = createSignal("")
+export const [menuIndex, setMenuIndex] = createSignal(0)
 export const [contextPercent, setContextPercent] = createSignal(0)
 export const [promptTokens, setPromptTokens] = createSignal(0)
 export const [workspace, setWorkspace] = createSignal("")
 export const [switchingModel, setSwitchingModel] = createSignal(false)
+export const [webEnabled, setWebEnabled] = createSignal(false)
 
 export const [toast, setToast] = createSignal<string | undefined>(undefined)
 let toastTimer: ReturnType<typeof setTimeout> | undefined
@@ -51,8 +59,31 @@ export function showToast(message: string): void {
   toastTimer = setTimeout(() => setToast(undefined), 1600)
 }
 
-export function addUserMessage(text: string): void {
-  setMessages((prev) => [...prev, { id: nextId("user"), role: "user", parts: [{ kind: "text", text }] }])
+export interface PendingImage {
+  name: string
+  dataUrl: string
+}
+
+export const [pendingImages, setPendingImages] = createSignal<PendingImage[]>([])
+
+export function addPendingImage(image: PendingImage): void {
+  setPendingImages((prev) => [...prev, image])
+}
+
+export function removePendingImage(index: number): void {
+  setPendingImages((prev) => prev.filter((_, i) => i !== index))
+}
+
+export function clearPendingImages(): void {
+  setPendingImages([])
+}
+
+export function addUserMessage(text: string, images?: string[]): void {
+  setMessages((prev) => [...prev, { id: nextId("user"), role: "user", parts: [{ kind: "text", text }], images }])
+}
+
+export function addInfoMessage(text: string): void {
+  setMessages((prev) => [...prev, { id: nextId("info"), role: "info", parts: [{ kind: "text", text }] }])
 }
 
 export function startAssistantMessage(): string {
@@ -63,6 +94,18 @@ export function startAssistantMessage(): string {
 
 export function patchMessage(id: string, fn: (message: UIMessage) => UIMessage): void {
   setMessages((prev) => prev.map((m) => (m.id === id ? fn(m) : m)))
+}
+
+export function setMessageThinking(id: string, seconds: number): void {
+  patchMessage(id, (m) => ({ ...m, thinkingMs: seconds }))
+}
+
+export function toggleThinking(id: string): void {
+  patchMessage(id, (m) => ({ ...m, thinkingExpanded: !m.thinkingExpanded }))
+}
+
+export function thinkingVisible(message: UIMessage): boolean {
+  return Boolean(message.thinkingExpanded) || showReasoning()
 }
 
 export function appendText(id: string, kind: "text" | "reasoning", text: string): void {
@@ -96,17 +139,31 @@ export function updateToolPart(
   }))
 }
 
+export type PermissionDecision = "once" | "always" | "deny"
+export const PERMISSION_DECISIONS: PermissionDecision[] = ["once", "always", "deny"]
+
 export interface PermissionRequest {
   name: string
   args: string
   destructive: boolean
-  resolve: (ok: boolean) => void
+  resolve: (decision: PermissionDecision) => void
 }
 
 export const [permission, setPermission] = createSignal<PermissionRequest | undefined>(undefined)
 export const [permissionChoice, setPermissionChoice] = createSignal(0)
+// Tools the user chose "always allow" for, for this session only (RAM, wiped on
+// exit). Never persisted.
+export const [allowedTools, setAllowedTools] = createSignal<string[]>([])
 
-export function requestPermission(name: string, args: string, destructive: boolean): Promise<boolean> {
+export function isToolAllowed(name: string): boolean {
+  return allowedTools().includes(name)
+}
+
+export function allowTool(name: string): void {
+  setAllowedTools((prev) => (prev.includes(name) ? prev : [...prev, name]))
+}
+
+export function requestPermission(name: string, args: string, destructive: boolean): Promise<PermissionDecision> {
   return new Promise((resolve) => {
     setStatus("permission")
     setPermissionChoice(0)
@@ -115,15 +172,15 @@ export function requestPermission(name: string, args: string, destructive: boole
 }
 
 export function movePermissionChoice(delta: number): void {
-  setPermissionChoice((current) => Math.max(0, Math.min(1, current + delta)))
+  setPermissionChoice((current) => Math.max(0, Math.min(PERMISSION_DECISIONS.length - 1, current + delta)))
 }
 
-export function answerPermission(ok: boolean): void {
+export function answerPermission(decision: PermissionDecision): void {
   const current = permission()
   if (!current) return
   setPermission(undefined)
-  setStatus(ok ? "tool" : "idle")
-  current.resolve(ok)
+  setStatus(decision === "deny" ? "idle" : "tool")
+  current.resolve(decision)
 }
 
 export function resetSession(): void {
@@ -137,6 +194,8 @@ export function resetSession(): void {
   setMetrics(EMPTY_METRICS)
   setContextPercent(0)
   setPromptTokens(0)
+  setAllowedTools([])
+  setPendingImages([])
   setStatus("idle")
   setStatusDetail("")
   setError(undefined)

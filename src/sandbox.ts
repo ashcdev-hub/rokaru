@@ -1,5 +1,6 @@
 import { realpathSync } from "node:fs"
 import { tmpdir } from "node:os"
+import { SENSITIVE_DIRS, SENSITIVE_FILES } from "./sensitive"
 
 function canonical(path: string): string | undefined {
   try {
@@ -30,7 +31,18 @@ export function buildSandboxProfile(workspace: string, extraWritePaths: string[]
 
   const rules = [...allowed].map((path) => `  (subpath ${JSON.stringify(path)})`).join("\n")
 
-  return ["(version 1)", "(allow default)", "(deny network*)", "(deny file-write*)", `(allow file-write*\n${rules})`].join(
-    "\n",
-  )
+  // Read-deny protected locations (later rules win over `allow default`).
+  const denies = [
+    ...SENSITIVE_DIRS.map((path) => `(deny file-read* (subpath ${JSON.stringify(path)}))`),
+    ...SENSITIVE_FILES.map((path) => `(deny file-read* (literal ${JSON.stringify(path)}))`),
+  ].join("\n")
+
+  return [
+    "(version 1)",
+    "(allow default)",
+    "(deny network*)",
+    "(deny file-write*)",
+    `(allow file-write*\n${rules})`,
+    denies,
+  ].join("\n")
 }

@@ -16,6 +16,18 @@ export interface SandboxConfig {
   extraWritePaths: string[]
 }
 
+export interface WebConfig {
+  // Off by default. When on, the model gets read-only web tools and the
+  // harness may make outbound HTTPS requests (still never POSTs data).
+  enabled: boolean
+  searchURL: string
+  maxResults: number
+  maxBytes: number
+  timeoutMs: number
+  // Only allow fetching URLs that came back from a web_search this session.
+  fetchOnlySearchResults: boolean
+}
+
 export interface RokaruConfig {
   baseURL: string
   systemPrompt: string
@@ -23,6 +35,7 @@ export interface RokaruConfig {
   inputHeight: number
   sampling: SamplingConfig
   sandbox: SandboxConfig
+  web: WebConfig
 }
 
 export const CONFIG_DIR = join(homedir(), ".config", "rokaru")
@@ -35,7 +48,6 @@ export const DEFAULT_SYSTEM_PROMPT = [
   "Use the provided tools to inspect and modify files. Read before you edit.",
   "Prefer small, exact changes. Never invent file contents or fabricate results.",
   "Keep replies short and concrete; explain only what is needed.",
-  "You have no network access. Do not attempt to reach any host.",
 ].join(" ")
 
 export const DEFAULT_CONFIG: RokaruConfig = {
@@ -50,6 +62,14 @@ export const DEFAULT_CONFIG: RokaruConfig = {
   },
   sandbox: {
     extraWritePaths: [],
+  },
+  web: {
+    enabled: false,
+    searchURL: "https://html.duckduckgo.com/html/",
+    maxResults: 5,
+    maxBytes: 600_000,
+    timeoutMs: 15_000,
+    fetchOnlySearchResults: true,
   },
 }
 
@@ -78,6 +98,7 @@ function mergeConfig(partial: Partial<RokaruConfig>): RokaruConfig {
     inputHeight: partial.inputHeight ?? DEFAULT_CONFIG.inputHeight,
     sampling: { ...DEFAULT_CONFIG.sampling, ...(partial.sampling ?? {}) },
     sandbox: { ...DEFAULT_CONFIG.sandbox, ...(partial.sandbox ?? {}) },
+    web: { ...DEFAULT_CONFIG.web, ...(partial.web ?? {}) },
   }
 }
 

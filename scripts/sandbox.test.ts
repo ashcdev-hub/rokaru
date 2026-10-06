@@ -2,6 +2,7 @@ import { TOOL_MAP } from "../src/tools"
 import { bashTool } from "../src/tools/bash"
 import { buildSandboxProfile } from "../src/sandbox"
 import { assertLoopback, LoopbackViolation } from "../src/guard"
+import { isSensitivePath } from "../src/sensitive"
 
 const ctx = { workspace: process.cwd(), extraWritePaths: [] as string[], signal: new AbortController().signal }
 let pass = 0
@@ -60,6 +61,20 @@ try {
   guardLocal = false
 }
 check("guard: loopback allowed", guardLocal)
+
+check("sensitive: ~/.ssh flagged", isSensitivePath("/Users/ash/.ssh/id_rsa"))
+check("sensitive: workspace not flagged", !isSensitivePath(process.cwd() + "/package.json"))
+
+const readTool = TOOL_MAP.get("read_file")!
+try {
+  await readTool.run({ path: "/Users/ash/.ssh/id_rsa" }, ctx)
+  check("read_file: sensitive path refused", false)
+} catch (err) {
+  check("read_file: sensitive path refused", (err as Error).message.includes("protected"))
+}
+
+const secretRead = await bashTool.run({ command: "cat ~/.omlx/settings.json 2>&1; echo MARK-$?" }, ctx)
+check("bash: sensitive read denied", secretRead.includes("not permitted") || secretRead.includes("MARK-1"), secretRead.replace(/\n/g, " "))
 
 console.log(`\n${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

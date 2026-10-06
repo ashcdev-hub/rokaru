@@ -8,9 +8,13 @@ export interface ToolCall {
   function: { name: string; arguments: string }
 }
 
+export type ContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } }
+
 export interface ChatMessage {
   role: Role
-  content: string | null
+  content: string | null | ContentPart[]
   tool_calls?: ToolCall[]
   tool_call_id?: string
   name?: string

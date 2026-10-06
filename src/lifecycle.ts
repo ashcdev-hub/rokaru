@@ -20,6 +20,13 @@ export function secureExit(renderer: CliRenderer | undefined, code = 0): never {
   } catch {
     // ignore
   }
+  // Belt-and-braces: after leaving the alternate screen, clear the visible
+  // screen and the scrollback so no part of the session lingers in the terminal.
+  try {
+    process.stdout.write("\u001b[2J\u001b[3J\u001b[H")
+  } catch {
+    // ignore
+  }
   process.exit(code)
 }
 

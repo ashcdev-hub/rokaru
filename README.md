@@ -20,27 +20,13 @@ cd ~/some/project
 rokaru
 ```
 
-`enter` send · `shift+enter` newline · `esc` abort · `tab` switch plan/build ·
-`ctrl+r` toggle all thinking · `ctrl+o` expand tool output · `ctrl+p` command
-palette · `ctrl+c` quit. `↑`/`↓` recall earlier prompts. Click a **Thought** line
-to expand/collapse that message's reasoning; click a **tool panel** to expand it.
-Tool calls render as their own panels with a per-category icon, a duration and
-red/green diffs for edits. User messages are tinted to separate turns, and a
-moving meter shows while the model is working. Selecting text copies it.
-
 ## Modes
 
 - **build** (default) — full editing and command running.
 - **plan** — read-only: the model can read, search, browse and plan, but the
-  writing/exec tools aren't even offered. Switch with `/plan` and `/build` (also
-  in the `ctrl+p` palette). Build is amber and plan is light blue; the mode and
-  active model show on the prompt footer. Replies render as markdown with
-  numbers, dates, emphasis and inline code coloured for readability; a **Todo**
-  panel appears in the sidebar while the agent works through a task list, and an
-  **MCP** panel lists connected servers once you enable any. Session Context
-  shows a cached-vs-new token bar with a cache-hit %; Model Speed shows
-  TTFT/TPS/OUT/elapsed, colour-graded; and the current git branch shows under the
-  header.
+  writing/exec tools aren't even offered. 
+  
+  Switch with `/plan` and `/build` or with the Tab key.
 
 ## Commands
 
@@ -96,7 +82,7 @@ credential shapes and masked before it reaches the model.
 
 ## MCP servers (optional)
 
-rokaru speaks **stdio** MCP only (local child processes) — remote `url`-based
+Rokaru speaks **stdio** MCP only (local child processes) — remote `url`-based
 servers aren't supported. Declare them under `mcp.servers`; they start
 **disabled on every launch** and are opt-in per session, so a fresh start stays
 fast with no extra tool schemas in the prompt.
@@ -178,17 +164,4 @@ exit, like everything else).
   "web": { "enabled": false },
   "mcp": { "servers": {} }
 }
-```
-
-## Tests
-
-```sh
-bun run test:security   # sandbox, loopback guard, protected paths
-bun run test:unit       # diff engine, tool schemas/modes, redaction, highlighting, themes
-bun run test:render     # TUI snapshots + selection-to-clipboard
-bun run test:agent      # full agent loop (needs oMLX)
-bun run test:image      # /image + view_image (needs oMLX)
-bun run test:web        # web safety guards + live search/fetch (needs network)
-bun run test:mcp        # MCP client against a mock stdio server
-bun run typecheck
 ```

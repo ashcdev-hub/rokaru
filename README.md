@@ -2,7 +2,7 @@
   <img src="assets/rokaru.png" alt="rokaru" width="420">
 </p>
 
-<center>Private local TUI harness for **oMLX** on apple silicon.</center>
+Private local TUI harness for **oMLX** on apple silicon.
 
 ## Privacy & security
 

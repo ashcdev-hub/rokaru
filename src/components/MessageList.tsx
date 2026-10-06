@@ -1,17 +1,30 @@
 /** @jsxImportSource @opentui/solid */
-import { For, Show } from "solid-js"
+import { For, Show, createSignal, onCleanup, onMount } from "solid-js"
+import { useTerminalDimensions } from "@opentui/solid"
 import { getTheme, sg } from "../theme"
 import { markdownStyle } from "../markdown"
 import { decorateAssistant } from "../highlight"
-import { expandTools, messages, status, thinkingVisible, todos, toggleThinking } from "../store"
+import {
+  expandTools,
+  messages,
+  status,
+  thinkingVisible,
+  todos,
+  toggleThinking,
+  toggleToolExpanded,
+} from "../store"
 import type { Part, UIMessage } from "../store"
 
 const COLLAPSE_LINES = 10
 
-function collapse(text: string, max: number): string {
+function collapse(text: string, max: number, expanded: boolean): string {
   const lines = text.split("\n")
-  if (lines.length <= max || expandTools()) return text
-  return lines.slice(0, max).join("\n") + `\n… (${lines.length - max} more lines · ctrl+o to expand)`
+  if (lines.length <= max || expanded) return text
+  return lines.slice(0, max).join("\n") + `\n… (${lines.length - max} more lines · click to expand)`
+}
+
+function formatDuration(ms: number): string {
+  return ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(1)}s`
 }
 
 function statusColour(s: Extract<Part, { kind: "tool" }>["status"]): string {
@@ -29,19 +42,6 @@ function statusColour(s: Extract<Part, { kind: "tool" }>["status"]): string {
   }
 }
 
-function statusSuffix(s: Extract<Part, { kind: "tool" }>["status"]): string {
-  switch (s) {
-    case "running":
-      return "  …"
-    case "error":
-      return "  failed"
-    case "denied":
-      return "  denied"
-    default:
-      return ""
-  }
-}
-
 function parseArgs(raw: string): any {
   try {
     return JSON.parse(raw)
@@ -50,23 +50,31 @@ function parseArgs(raw: string): any {
   }
 }
 
+// Icon + colour by tool category, so panels are scannable at a glance.
 function toolHeader(name: string, argsRaw: string): { lead: string; text: string; colour: string } {
   const args = parseArgs(argsRaw)
+  if (name.startsWith("mcp__")) return { lead: "⚙", text: name.replace(/^mcp__/, "").replace("__", " · "), colour: getTheme().meter }
   switch (name) {
     case "read_file":
       return { lead: "→", text: `Read ${args.path ?? ""}`, colour: getTheme().blue }
-    case "write_file":
-      return { lead: "←", text: `Write ${args.path ?? ""}`, colour: getTheme().accent }
-    case "edit_file":
-      return { lead: "←", text: `Edit ${args.path ?? ""}`, colour: getTheme().accent }
     case "list_dir":
       return { lead: "→", text: `List ${args.path ?? "."}`, colour: getTheme().blue }
     case "glob":
       return { lead: "→", text: `Glob ${args.pattern ?? ""}`, colour: getTheme().blue }
     case "grep":
       return { lead: "→", text: `Grep ${args.pattern ?? ""}`, colour: getTheme().blue }
+    case "view_image":
+      return { lead: "▣", text: `View ${args.path ?? ""}`, colour: getTheme().meter }
+    case "write_file":
+      return { lead: "✎", text: `Write ${args.path ?? ""}`, colour: getTheme().accent }
+    case "edit_file":
+      return { lead: "✎", text: `Edit ${args.path ?? ""}`, colour: getTheme().accent }
     case "bash":
       return { lead: "$", text: args.command ?? argsRaw, colour: getTheme().good }
+    case "web_search":
+      return { lead: "⌕", text: `Search ${args.query ?? ""}`, colour: getTheme().meter }
+    case "web_fetch":
+      return { lead: "⌕", text: `Fetch ${args.url ?? ""}`, colour: getTheme().meter }
     default:
       return { lead: "⚙", text: name, colour: getTheme().tool }
   }
@@ -82,9 +90,20 @@ function AssistantText(props: { text: string; streaming: boolean }) {
   )
 }
 
-function ToolView(props: { part: Extract<Part, { kind: "tool" }> }) {
+function StreamingCursor() {
+  const [on, setOn] = createSignal(true)
+  onMount(() => {
+    const id = setInterval(() => setOn((v) => !v), 480)
+    onCleanup(() => clearInterval(id))
+  })
+  return <text fg={getTheme().accent}>{on() ? "▌" : " "}</text>
+}
+
+function ToolView(props: { message: UIMessage; part: Extract<Part, { kind: "tool" }> }) {
   const part = props.part
   const header = () => toolHeader(part.name, part.args)
+  const expanded = () => Boolean(part.expanded) || expandTools()
+
   if (part.name === "todo_write") {
     return (
       <box
@@ -108,6 +127,16 @@ function ToolView(props: { part: Extract<Part, { kind: "tool" }> }) {
       </box>
     )
   }
+
+  const suffix = () => {
+    const bits: string[] = []
+    if (part.status === "running") bits.push("…")
+    else if (part.status === "error") bits.push("failed")
+    else if (part.status === "denied") bits.push("denied")
+    if (part.durationMs !== undefined && part.status !== "denied") bits.push(formatDuration(part.durationMs))
+    return bits.length > 0 ? `  ${bits.join(" · ")}` : ""
+  }
+
   return (
     <box
       flexDirection="column"
@@ -118,18 +147,19 @@ function ToolView(props: { part: Extract<Part, { kind: "tool" }> }) {
       backgroundColor={getTheme().panelBg}
       paddingLeft={1}
       paddingRight={1}
+      onMouseDown={() => toggleToolExpanded(props.message.id, part.id)}
     >
       <text fg={header().colour}>
         <span {...sg(header().colour)}>{`${header().lead} `}</span>
         <span {...sg(getTheme().text)}>{header().text}</span>
-        <span {...sg(part.status === "error" ? getTheme().bad : getTheme().dim)}>{statusSuffix(part.status)}</span>
+        <span {...sg(part.status === "error" ? getTheme().bad : getTheme().dim)}>{suffix()}</span>
       </text>
       <Show
         when={part.diff && part.diff.length > 0}
         fallback={
           <Show when={part.result.length > 0}>
             <text fg={part.status === "error" || part.status === "denied" ? getTheme().bad : getTheme().dim}>
-              {collapse(part.result, COLLAPSE_LINES)}
+              {collapse(part.result, COLLAPSE_LINES, expanded())}
             </text>
           </Show>
         }
@@ -174,10 +204,16 @@ function PartView(props: { message: UIMessage; part: Part; streaming: boolean })
   if (part.kind === "reasoning") {
     return <ThoughtView message={props.message} text={part.text} />
   }
-  return <ToolView part={part} />
+  return <ToolView message={props.message} part={part} />
 }
 
-function MessageView(props: { message: UIMessage; streaming: boolean }) {
+function Separator() {
+  const dims = useTerminalDimensions()
+  const width = () => Math.max(10, (dims()?.width ?? 80) - 34 - 4)
+  return <text fg={getTheme().track}>{"─".repeat(width())}</text>
+}
+
+function MessageView(props: { message: UIMessage; streaming: boolean; first: boolean }) {
   return (
     <Show
       when={props.message.role !== "info"}
@@ -189,7 +225,20 @@ function MessageView(props: { message: UIMessage; streaming: boolean }) {
         </box>
       }
     >
-      <box flexDirection="column" marginBottom={1}>
+      <Show when={props.message.role === "user" && !props.first}>
+        <box flexDirection="column" marginTop={1}>
+          <Separator />
+        </box>
+      </Show>
+      <box
+        flexDirection="column"
+        marginBottom={1}
+        backgroundColor={props.message.role === "user" ? getTheme().panelBg : undefined}
+        paddingLeft={props.message.role === "user" ? 1 : 0}
+        paddingRight={props.message.role === "user" ? 1 : 0}
+        paddingTop={props.message.role === "user" ? 1 : 0}
+        paddingBottom={props.message.role === "user" ? 1 : 0}
+      >
         <text fg={props.message.role === "user" ? getTheme().accent : getTheme().blue}>
           <b>{props.message.role === "user" ? "you" : "agent"}</b>
         </text>
@@ -201,11 +250,23 @@ function MessageView(props: { message: UIMessage; streaming: boolean }) {
             <text fg={getTheme().dim}>{`📎 ${props.message.images!.join("  ")}`}</text>
           </Show>
           <Show when={props.streaming}>
-            <text fg={getTheme().accent}>▌</text>
+            <StreamingCursor />
           </Show>
         </box>
       </box>
     </Show>
+  )
+}
+
+function EmptyState() {
+  return (
+    <box flexDirection="column" paddingLeft={2} paddingTop={1} alignItems="flex-start">
+      <text fg={getTheme().blue}>
+        <b>ready</b>
+      </text>
+      <text fg={getTheme().dim}>type a message and press enter</text>
+      <text fg={getTheme().dim}>/ for commands · ctrl+p palette · tab plan/build</text>
+    </box>
   )
 }
 
@@ -220,8 +281,13 @@ export function MessageList() {
 
   return (
     <scrollbox flexGrow={1} stickyScroll={true} stickyStart="bottom" paddingLeft={1} paddingRight={1}>
+      <Show when={messages().length === 0}>
+        <EmptyState />
+      </Show>
       <For each={messages()}>
-        {(message) => <MessageView message={message} streaming={streamingId() === message.id} />}
+        {(message, index) => (
+          <MessageView message={message} streaming={streamingId() === message.id} first={index() === 0} />
+        )}
       </For>
     </scrollbox>
   )

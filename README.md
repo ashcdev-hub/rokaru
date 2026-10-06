@@ -23,9 +23,10 @@ rokaru
 `enter` send · `shift+enter` newline · `esc` abort · `tab` switch plan/build ·
 `ctrl+r` toggle all thinking · `ctrl+o` expand tool output · `ctrl+p` command
 palette · `ctrl+c` quit. `↑`/`↓` recall earlier prompts. Click a **Thought** line
-to expand/collapse that message's reasoning. Tool calls render as their own panels
-(with red/green diffs for edits), and a moving meter shows while the model is
-working. Selecting text copies it.
+to expand/collapse that message's reasoning; click a **tool panel** to expand it.
+Tool calls render as their own panels with a per-category icon, a duration and
+red/green diffs for edits. User messages are tinted to separate turns, and a
+moving meter shows while the model is working. Selecting text copies it.
 
 ## Modes
 
@@ -36,8 +37,10 @@ working. Selecting text copies it.
   active model show on the prompt footer. Replies render as markdown with
   numbers, dates, emphasis and inline code coloured for readability; a **Todo**
   panel appears in the sidebar while the agent works through a task list, and an
-  **MCP** panel lists connected servers once you enable any. The sidebar
-  otherwise keeps Session Context and Model Speed.
+  **MCP** panel lists connected servers once you enable any. Session Context
+  shows a cached-vs-new token bar with a cache-hit %; Model Speed shows
+  TTFT/TPS/OUT/elapsed, colour-graded; and the current git branch shows under the
+  header.
 
 ## Commands
 
@@ -86,7 +89,8 @@ but not **reads**; don't point it at a box full of secrets.
 `read_file`, `list_dir`, `glob`, `grep`, `view_image`, `todo_write` run
 automatically; `write_file`, `edit_file`, `bash` ask first. Choose **allow once**,
 **always allow** (stops asking for that tool for the rest of the session) or
-**deny** with `↑`/`↓` and `enter` (or `y`/`a`/`n`). For `bash`, "always allow"
+**deny** with `↑`/`↓` and `enter` (or `y`/`a`/`n`). The prompt previews what will
+run (a `$` block for `bash`, a diff for edits). For `bash`, "always allow"
 remembers just the leading command word (e.g. `git`). Tool output is scanned for
 credential shapes and masked before it reaches the model.
 

@@ -14,6 +14,8 @@ export type Part =
       status: "pending" | "running" | "ok" | "error" | "denied"
       result: string
       diff?: { kind: "add" | "del" | "ctx"; text: string }[]
+      durationMs?: number
+      expanded?: boolean
     }
 
 export interface UIMessage {
@@ -50,6 +52,7 @@ export const [paletteIndex, setPaletteIndex] = createSignal(0)
 export const [contextPercent, setContextPercent] = createSignal(0)
 export const [promptTokens, setPromptTokens] = createSignal(0)
 export const [workspace, setWorkspace] = createSignal("")
+export const [gitBranch, setGitBranch] = createSignal("")
 export const [switchingModel, setSwitchingModel] = createSignal(false)
 export const [webEnabled, setWebEnabled] = createSignal(false)
 
@@ -84,13 +87,20 @@ export interface TodoItem {
 
 export const [todos, setTodos] = createSignal<TodoItem[]>([])
 
-export const [toast, setToast] = createSignal<string | undefined>(undefined)
+export type ToastKind = "info" | "success" | "warn" | "error"
+
+export interface Toast {
+  message: string
+  kind: ToastKind
+}
+
+export const [toast, setToast] = createSignal<Toast | undefined>(undefined)
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 
-export function showToast(message: string): void {
-  setToast(message)
+export function showToast(message: string, kind: ToastKind = "success"): void {
+  setToast({ message, kind })
   if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => setToast(undefined), 1600)
+  toastTimer = setTimeout(() => setToast(undefined), kind === "error" ? 3200 : 1700)
 }
 
 export interface PendingImage {
@@ -170,6 +180,13 @@ export function updateToolPart(
   patchMessage(id, (m) => ({
     ...m,
     parts: m.parts.map((p) => (p.kind === "tool" && p.id === toolId ? { ...p, ...patch } : p)),
+  }))
+}
+
+export function toggleToolExpanded(messageId: string, toolId: string): void {
+  patchMessage(messageId, (m) => ({
+    ...m,
+    parts: m.parts.map((p) => (p.kind === "tool" && p.id === toolId ? { ...p, expanded: !p.expanded } : p)),
   }))
 }
 

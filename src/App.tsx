@@ -12,6 +12,7 @@ import { imageDataUrl } from "./image"
 import { undoLast } from "./undo"
 import { connectServer, disconnectServer } from "./mcp"
 import { registerDynamicTools, unregisterDynamicTools } from "./tools"
+import { detectGit } from "./git"
 import { isAbsolute, resolve } from "node:path"
 import { getTheme, activeThemeName, setCurrentTheme, addCustomTheme, themeNames, THEMES, THEME_ROLES, THEME_COLOURS } from "./theme"
 import { VERSION } from "./version"
@@ -52,8 +53,10 @@ export function App() {
   onMount(() => {
     installLifecycle(renderer)
     store.setWorkspace(workspace)
+    const git = detectGit(workspace)
+    if (git.branch.length > 0) store.setGitBranch(git.branch + (git.dirty ? "*" : ""))
     store.setWebEnabled(config.web?.enabled === true)
-    if (config.web?.enabled) store.showToast("web access enabled (read-only)")
+    if (config.web?.enabled) store.showToast("web access enabled (read-only)", "info")
     // MCP servers are opt-in per session: never autostart, so a fresh launch
     // always has none connected (fast prompt, no extra tool schemas).
     const mcpEntries = Object.entries(config.mcp?.servers ?? {})
@@ -172,8 +175,8 @@ export function App() {
     const prefix = matchCommands(name)
     const spec = exact ?? (prefix.length === 1 ? prefix[0] : undefined)
     if (!spec) {
-      if (prefix.length > 1) store.showToast(`ambiguous: ${prefix.map((c) => `/${c.name}`).join(", ")}`)
-      else store.showToast(`unknown command: /${name}`)
+      if (prefix.length > 1) store.showToast(`ambiguous: ${prefix.map((c) => `/${c.name}`).join(", ")}`, "warn")
+      else store.showToast(`unknown command: /${name}`, "warn")
       return
     }
     switch (spec.name) {
@@ -181,7 +184,7 @@ export function App() {
         if (arg.length > 0) {
           const match = store.models().find((m) => m.id.toLowerCase().includes(arg.toLowerCase()))
           if (match) applyModel(match)
-          else store.showToast(`no model matching “${arg}”`)
+          else store.showToast(`no model matching “${arg}”`, "warn")
         } else {
           store.setSwitchingModel(true)
         }
@@ -243,7 +246,7 @@ export function App() {
           store.addPendingImage({ name: `${arg} (${Math.round(bytes / 1024)} KB)`, dataUrl })
           store.showToast(`attached ${arg}`)
         } catch (err) {
-          store.showToast(`image: ${(err as Error).message}`)
+          store.showToast(`image: ${(err as Error).message}`, "error")
         }
         return
       }
@@ -253,7 +256,7 @@ export function App() {
         return
       case "compact": {
         if (busy()) {
-          store.showToast("busy — try /compact when idle")
+          store.showToast("busy — try /compact when idle", "warn")
           return
         }
         const controller = new AbortController()
@@ -319,14 +322,14 @@ export function App() {
       unregisterDynamicTools(mcpToolNames.get(entry.name) ?? [])
       mcpToolNames.delete(entry.name)
       updateMcpStatus(entry.name, { status: "disabled", tools: 0, error: undefined })
-      store.showToast(`mcp ${entry.name}: off`)
+      store.showToast(`mcp ${entry.name}: off`, "info")
       return
     }
     updateMcpStatus(entry.name, { status: "connecting", tools: 0, error: undefined })
     const result = await connectServer(entry.name, serverConfig)
     if (result.error) {
       updateMcpStatus(entry.name, { status: "error", tools: 0, error: result.error })
-      store.showToast(`mcp ${entry.name}: ${result.error}`)
+      store.showToast(`mcp ${entry.name}: ${result.error}`, "error")
     } else {
       registerDynamicTools(result.tools)
       mcpToolNames.set(entry.name, result.toolNames)
@@ -369,7 +372,7 @@ export function App() {
     let n = 2
     while (THEMES[name]) name = `custom-${n++}`
     if (!addCustomTheme(name, draft)) {
-      store.showToast("could not create theme")
+      store.showToast("could not create theme", "error")
       return
     }
     setCurrentTheme(name)
@@ -398,7 +401,7 @@ export function App() {
   const submit = (text: string) => {
     if (busy()) {
       queued = text
-      store.showToast("queued — will send when the model is free")
+      store.showToast("queued — will send when the model is free", "info")
       return
     }
     if (text.startsWith("/")) {
@@ -611,7 +614,7 @@ export function App() {
         key.preventDefault()
         const next = store.mode() === "plan" ? "build" : "plan"
         store.setMode(next)
-        store.showToast(`mode: ${next}`)
+        store.showToast(`mode: ${next}`, "info")
         return
       }
       if ((key.name === "up" && (navigating || store.inputValue() === "")) || (key.name === "down" && navigating)) {

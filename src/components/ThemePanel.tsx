@@ -3,16 +3,49 @@ import { For, Show } from "solid-js"
 import {
   THEME_ROLE_LABELS,
   THEME_ROLES,
+  THEMES,
   activeThemeName,
   getTheme,
   sg,
   themeNames,
+  type Theme,
 } from "../theme"
 import { themeCustom, themeCustomRole, themeDraft, themeIndex } from "../store"
+
+function Preview(props: { theme: Theme }) {
+  const t = () => props.theme
+  return (
+    <box
+      flexDirection="column"
+      marginTop={1}
+      border
+      borderStyle="rounded"
+      borderColor={t().panelBorder}
+      backgroundColor={t().panelBg}
+      paddingLeft={1}
+      paddingRight={1}
+    >
+      <text fg={t().accent}>
+        <b>Heading</b>
+      </text>
+      <text fg={t().body}>body text with inline code and a link</text>
+      <text>
+        <span {...sg(t().good)}>{"ok"}</span>
+        <span {...sg(t().dim)}>{" · "}</span>
+        <span {...sg(t().warn)}>{"warn"}</span>
+        <span {...sg(t().dim)}>{" · "}</span>
+        <span {...sg(t().bad)}>{"error"}</span>
+        <span {...sg(t().dim)}>{" · "}</span>
+        <span {...sg(t().blue)}>{"link"}</span>
+      </text>
+    </box>
+  )
+}
 
 export function ThemePanel() {
   const names = () => themeNames()
   const newRow = () => names().length
+  const highlighted = () => THEMES[names()[themeIndex()]] ?? getTheme()
 
   return (
     <box width="100%" height="100%" flexDirection="column" justifyContent="center" alignItems="center">
@@ -47,7 +80,9 @@ export function ThemePanel() {
               {"new theme  (build a custom palette)"}
             </span>
           </text>
-          <text fg={getTheme().dim}>{""}</text>
+          <Show when={themeIndex() < names().length}>
+            <Preview theme={highlighted()} />
+          </Show>
           <text fg={getTheme().dim}>↑/↓ choose · enter apply · esc close</text>
         </Show>
       </box>
@@ -75,7 +110,7 @@ function EditMode() {
               </text>
             )}
           </For>
-          <text fg={getTheme().dim}>{""}</text>
+          <Preview theme={draft()} />
           <text fg={getTheme().dim}>↑/↓ role · ←/→ colour · enter save · esc cancel</text>
         </>
       )}

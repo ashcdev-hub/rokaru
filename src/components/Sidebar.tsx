@@ -1,9 +1,11 @@
 /** @jsxImportSource @opentui/solid */
 import { For, Show } from "solid-js"
 import { getTheme, sg } from "../theme"
-import { contextPercent, mcpServers, metrics, modelLimit, promptTokens, todos } from "../store"
-import { bar, formatCompact, formatInt, formatRate, formatSeconds } from "../metrics"
+import { contextPercent, gitBranch, mcpServers, metrics, modelLimit, promptTokens, todos } from "../store"
+import { formatCompact, formatInt, formatRate, formatSeconds } from "../metrics"
 import { VERSION } from "../version"
+
+const BAR_WIDTH = 22
 
 function Panel(props: { title: string; children: any }) {
   return (
@@ -19,7 +21,7 @@ function Panel(props: { title: string; children: any }) {
 function Field(props: { label: string; value: string; fg?: string }) {
   return (
     <text fg={props.fg ?? getTheme().good}>
-      <span {...sg(getTheme().dim)}>{props.label.padEnd(6)}</span>
+      <span {...sg(getTheme().dim)}>{props.label.padEnd(7)}</span>
       <span {...sg(props.fg ?? getTheme().good)}>{props.value}</span>
     </text>
   )
@@ -33,14 +35,45 @@ export function Sidebar(props: { width?: number }) {
     return getTheme().good
   }
 
-  const contextLine = () => {
-    const limit = modelLimit()
-    const used = promptTokens()
-    const limitText = limit > 0 ? formatCompact(limit) : "--"
-    return `${formatCompact(used)} / ${limitText}`
+  const ttftColour = () => {
+    const t = metrics().ttft
+    if (!t) return getTheme().dim
+    return t <= 3 ? getTheme().good : t <= 8 ? getTheme().warn : getTheme().bad
   }
 
-  const barParts = () => bar(contextPercent(), 22)
+  const tpsColour = () => {
+    const t = metrics().tps
+    if (!t) return getTheme().dim
+    return t >= 25 ? getTheme().good : t >= 12 ? getTheme().warn : getTheme().bad
+  }
+
+  const segments = () => {
+    const limit = modelLimit() || 1
+    const prompt = promptTokens()
+    const cached = Math.min(metrics().cachedTokens, prompt)
+    const cachedN = Math.round((cached / limit) * BAR_WIDTH)
+    const newN = Math.round(((prompt - cached) / limit) * BAR_WIDTH)
+    const total = Math.min(BAR_WIDTH, cachedN + newN)
+    const cachedClamped = Math.min(cachedN, total)
+    const newClamped = Math.max(0, total - cachedClamped)
+    return {
+      cached: cachedClamped,
+      fresh: newClamped,
+      rest: Math.max(0, BAR_WIDTH - total),
+    }
+  }
+
+  const cacheHit = () => {
+    const prompt = promptTokens()
+    if (prompt <= 0) return 0
+    return Math.round((metrics().cachedTokens / prompt) * 100)
+  }
+
+  const contextLine = () => {
+    const limit = modelLimit()
+    const limitText = limit > 0 ? formatCompact(limit) : "--"
+    return `${formatCompact(promptTokens())} / ${limitText}`
+  }
 
   return (
     <box
@@ -59,6 +92,9 @@ export function Sidebar(props: { width?: number }) {
         <b>rokaru</b>
       </text>
       <text fg={getTheme().dim}>private session</text>
+      <Show when={gitBranch().length > 0}>
+        <text fg={getTheme().dim}>{`⎇ ${gitBranch()}`}</text>
+      </Show>
 
       <box flexDirection="column" marginTop={1}>
         <Show when={todos().length > 0}>
@@ -66,13 +102,7 @@ export function Sidebar(props: { width?: number }) {
             <For each={todos()}>
               {(todo) => (
                 <text
-                  fg={
-                    todo.status === "completed"
-                      ? getTheme().dim
-                      : todo.status === "in_progress"
-                        ? getTheme().accent
-                        : getTheme().text
-                  }
+                  fg={todo.status === "completed" ? getTheme().dim : todo.status === "in_progress" ? getTheme().accent : getTheme().text}
                 >
                   {`${todo.status === "completed" ? "[✓]" : todo.status === "in_progress" ? "[•]" : "[ ]"} ${todo.content}`}
                 </text>
@@ -82,18 +112,23 @@ export function Sidebar(props: { width?: number }) {
         </Show>
 
         <Panel title="Session Context">
-          <text fg={usageColour()}>
-            <span {...sg(usageColour())}>{barParts().filled}</span>
-            <span {...sg(getTheme().dim)}>{barParts().track}</span>
-            <span {...sg(getTheme().text)}>{` ${Math.round(contextPercent())}%`}</span>
+          <text>
+            <span {...sg(getTheme().blue)}>{"█".repeat(segments().cached)}</span>
+            <span {...sg(getTheme().good)}>{"█".repeat(segments().fresh)}</span>
+            <span {...sg(getTheme().track)}>{"░".repeat(segments().rest)}</span>
+            <span {...sg(usageColour())}>{` ${Math.round(contextPercent())}%`}</span>
           </text>
           <text fg={getTheme().dim}>{contextLine()}</text>
+          <Show when={cacheHit() > 0}>
+            <text fg={getTheme().dim}>{`cache ${cacheHit()}%`}</text>
+          </Show>
         </Panel>
 
         <Panel title="Model Speed">
-          <Field label="TTFT" value={formatSeconds(metrics().ttft)} />
-          <Field label="TPS" value={formatRate(metrics().tps)} />
+          <Field label="TTFT" value={formatSeconds(metrics().ttft)} fg={ttftColour()} />
+          <Field label="TPS" value={formatRate(metrics().tps)} fg={tpsColour()} />
           <Field label="OUT" value={metrics().outputTokens > 0 ? formatInt(metrics().outputTokens) : "--"} />
+          <Field label="TIME" value={formatSeconds(metrics().elapsed)} fg={getTheme().dim} />
         </Panel>
 
         <Show when={mcpServers().length > 0}>

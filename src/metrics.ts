@@ -36,6 +36,7 @@ export interface TurnMetrics {
   promptTokens: number
   cachedTokens: number
   contextLimit: number
+  elapsed: number
   model: string
 }
 
@@ -46,5 +47,6 @@ export const EMPTY_METRICS: TurnMetrics = {
   promptTokens: 0,
   cachedTokens: 0,
   contextLimit: 0,
+  elapsed: 0,
   model: "",
 }

@@ -57,6 +57,7 @@ function applyUsage(usage: Usage): void {
     promptTokens,
     cachedTokens: usage.prompt_tokens_details?.cached_tokens ?? 0,
     contextLimit: limit,
+    elapsed: usage.total_time ?? 0,
     model: store.model(),
   })
   store.setPromptTokens(promptTokens)
@@ -64,7 +65,7 @@ function applyUsage(usage: Usage): void {
   store.setContextPercent(percent)
   if (percent >= 85 && !warnedContext) {
     warnedContext = true
-    store.showToast("context 85% full — /compact to free space")
+    store.showToast("context 85% full — /compact to free space", "warn")
   }
 }
 
@@ -240,6 +241,7 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
     store.setStatus("tool")
     store.setStatusDetail(call.name)
     store.updateToolPart(assistantId, call.id, { status: "running" })
+    const startedAt = performance.now()
     try {
       const callCtx = {
         ...baseCtx,
@@ -254,12 +256,20 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
         },
       }
       const result = redactSecrets(await tool.run(parseArgs(call.args), callCtx))
-      store.updateToolPart(assistantId, call.id, { status: "ok", result })
+      store.updateToolPart(assistantId, call.id, {
+        status: "ok",
+        result,
+        durationMs: performance.now() - startedAt,
+      })
       return result
     } catch (err) {
       if ((err as Error).name === "AbortError") throw err
       const result = `error: ${redactSecrets((err as Error).message)}`
-      store.updateToolPart(assistantId, call.id, { status: "error", result })
+      store.updateToolPart(assistantId, call.id, {
+        status: "error",
+        result,
+        durationMs: performance.now() - startedAt,
+      })
       return result
     }
   }
@@ -396,12 +406,12 @@ export async function compactHistory(options: TurnOptions): Promise<boolean> {
       if (event.type === "content") summary += event.text
     }
   } catch {
-    store.showToast("compact failed")
+    store.showToast("compact failed", "error")
     return false
   }
 
   if (summary.trim().length === 0) {
-    store.showToast("compact produced nothing")
+    store.showToast("compact produced nothing", "warn")
     return false
   }
 

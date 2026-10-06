@@ -3,6 +3,38 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.4.0] - 2026-10-06
+
+### Added
+
+- **Tool panels** show a per-category icon and colour (read blue, write amber,
+  `$` bash green, web/MCP purple) and each call's **duration**; click a panel to
+  expand it.
+- **Permission previews** — the prompt shows what will run: a `$` code block for
+  `bash`, a red/green diff for `edit_file`, content for `write_file`, else a
+  summary line.
+- **Richer sidebar** — two-tone context bar (cached vs new tokens) with a
+  **cache-hit %**, colour-graded TTFT/TPS, turn **elapsed** time, and the current
+  **git branch** (with `*` when dirty).
+- **Empty-state hint** before the first message.
+
+### Changed
+
+- **User messages** render as a tinted block, with a separator between turns; the
+  streaming caret now animates.
+- **Toasts are typed** (success / info / warn / error) with matching colour/icon.
+- **`/themes`** panel shows a live preview of the highlighted palette.
+
+### Fixed
+
+- User-message blocks had no vertical padding, so the text hugged the tinted
+  box; they now have a row of padding above and below.
+
+### Deferred
+
+- Code-block syntax highlighting (the bundled tree-sitter client isn't in
+  `@opentui/core`'s public exports) and a blockquote bar.
+
 ## [0.3.0] - 2026-10-06
 
 ### Added

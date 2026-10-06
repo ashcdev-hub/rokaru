@@ -1,0 +1,29 @@
+#!/bin/sh
+# rokaru launcher — resolves this script's real location (even via symlink)
+# and runs the harness from there, leaving the caller's cwd as the workspace.
+set -e
+
+SOURCE="$0"
+while [ -h "$SOURCE" ]; do
+  DIR=$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)
+  SOURCE=$(readlink "$SOURCE")
+  case "$SOURCE" in
+    /*) ;;
+    *) SOURCE="$DIR/$SOURCE" ;;
+  esac
+done
+ROOT=$(cd -P "$(dirname "$SOURCE")/.." >/dev/null 2>&1 && pwd)
+
+if ! command -v bun >/dev/null 2>&1; then
+  echo "rokaru: bun is required but not on PATH" >&2
+  exit 1
+fi
+
+# bun only picks up the project's bunfig.toml (which loads the OpenTUI/Solid
+# preload) when cwd is the project root, so run from there and hand the user's
+# real directory over as the workspace.
+ROKARU_WORKSPACE="$PWD"
+export ROKARU_WORKSPACE
+cd "$ROOT"
+
+exec bun run "$ROOT/src/index.tsx" "$@"

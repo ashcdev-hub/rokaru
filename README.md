@@ -2,11 +2,11 @@
   <img src="assets/rokaru.png" alt="rokaru" width="420">
 </p>
 
-Private local TUI harness for [**oMLX**](https://github.com/jundot/omlx) on apple silicon.
+Private local AI harness for [**oMLX**](https://github.com/jundot/omlx) on apple silicon.
 
 ## Requirements & install
 
-macOS with **Bun**, and **oMLX already running** with a model loaded (rokaru
+Rokaru is a TUI which requires macOS with **Bun**, and **oMLX already running** with a model loaded (rokaru
 never starts/stops oMLX).
 
 ```sh

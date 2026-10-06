@@ -4,28 +4,6 @@
 
 Private local TUI harness for [**oMLX**](https://github.com/jundot/omlx) on apple silicon.
 
-## Privacy & security
-
-- **RAM-only sessions.** No transcript, history, or log is written to disk. On
-  exit (`ctrl+c`, `SIGTERM`, crash) buffers are wiped; there's nothing on disk to
-  recover.
-- **Local by default.** The oMLX connection is checked against `127.0.0.1` / `::1`
-  / `localhost`; anything else is refused. Proxy env vars are stripped. The only
-  way anything reaches the internet is the optional read-only web tools below.
-- **Sandboxed tools.** `bash` runs under `sandbox-exec` with **all network
-  denied** and writes confined to the workspace + temp. `write_file` / `edit_file`
-  are workspace-confined too.
-- **Protected paths.** Tools and the sandbox refuse to read `~/.ssh`, `~/.aws`,
-  keychains, browser data, the oMLX config and other secret locations.
-- **Secrets.** The API key comes from env or the macOS Keychain, never written to
-  disk. Config dir `~/.config/rokaru` is `0700`, file `0600`.
-- **No telemetry.** On exit the screen and scrollback are cleared and core dumps
-  are disabled.
-
-Caveats: your prompts still pass through oMLX, which keeps its own KV cache and
-usage DB — rokaru doesn't touch those. And the sandbox blocks network and writes,
-but not **reads**; don't point it at a box full of secrets.
-
 ## Requirements & install
 
 macOS with **Bun**, and **oMLX already running** with a model loaded (rokaru
@@ -80,6 +58,28 @@ Type `/` for a menu (tab completes), or `ctrl+p` for the palette:
 - `/exit` — quit (the alias `/quit` resolves to it).
 
 A prompt sent while the model is working is queued and sent when it's free.
+
+## Privacy & security
+
+- **RAM-only sessions.** No transcript, history, or log is written to disk. On
+  exit (`ctrl+c`, `SIGTERM`, crash) buffers are wiped; there's nothing on disk to
+  recover.
+- **Local by default.** The oMLX connection is checked against `127.0.0.1` / `::1`
+  / `localhost`; anything else is refused. Proxy env vars are stripped. The only
+  way anything reaches the internet is the optional read-only web tools below.
+- **Sandboxed tools.** `bash` runs under `sandbox-exec` with **all network
+  denied** and writes confined to the workspace + temp. `write_file` / `edit_file`
+  are workspace-confined too.
+- **Protected paths.** Tools and the sandbox refuse to read `~/.ssh`, `~/.aws`,
+  keychains, browser data, the oMLX config and other secret locations.
+- **Secrets.** The API key comes from env or the macOS Keychain, never written to
+  disk. Config dir `~/.config/rokaru` is `0700`, file `0600`.
+- **No telemetry.** On exit the screen and scrollback are cleared and core dumps
+  are disabled.
+
+Caveats: your prompts still pass through oMLX, which keeps its own KV cache and
+usage DB — rokaru doesn't touch those. And the sandbox blocks network and writes,
+but not **reads**; don't point it at a box full of secrets.
 
 ## Tools
 

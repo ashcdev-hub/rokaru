@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSy
 import { dirname, isAbsolute, join, relative, resolve } from "node:path"
 import { diffLines } from "../diff"
 import { isSensitivePath } from "../sensitive"
+import { pushSnapshot } from "../undo"
 import type { ToolContext, ToolDef } from "./types"
 
 const MAX_READ_CHARS = 200_000
@@ -90,6 +91,7 @@ export const writeFileTool: ToolDef = {
     const content = String(args?.content ?? "")
     const existed = existsSync(target)
     const previous = existed ? readFileSync(target, "utf8") : ""
+    pushSnapshot({ path: target, previous: existed ? previous : null, label: "write" })
     mkdirSync(dirname(target), { recursive: true })
     writeFileSync(target, content)
     try {
@@ -131,6 +133,7 @@ export const editFileTool: ToolDef = {
       throw new Error(`old_string occurs ${count} times; set replace_all or provide more context`)
     }
     const updated = replaceAll ? original.split(oldString).join(newString) : original.replace(oldString, newString)
+    pushSnapshot({ path: target, previous: original, label: "edit" })
     writeFileSync(target, updated)
     try {
       ctx.onDiff?.(diffLines(original, updated))

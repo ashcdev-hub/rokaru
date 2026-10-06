@@ -1,25 +1,14 @@
 /** @jsxImportSource @opentui/solid */
-import { Show } from "solid-js"
-import { THEME, HEX, sg } from "../theme"
-import {
-  allowedTools,
-  contextPercent,
-  metrics,
-  model,
-  modelLimit,
-  promptTokens,
-  showReasoning,
-  status,
-  webEnabled,
-  workspace,
-} from "../store"
+import { For, Show } from "solid-js"
+import { getTheme, sg } from "../theme"
+import { contextPercent, mcpServers, metrics, modelLimit, promptTokens, todos } from "../store"
 import { bar, formatCompact, formatInt, formatRate, formatSeconds } from "../metrics"
 import { VERSION } from "../version"
 
 function Panel(props: { title: string; children: any }) {
   return (
     <box flexDirection="column" flexShrink={0} marginBottom={1}>
-      <text fg={THEME.text}>
+      <text fg={getTheme().text}>
         <b>{props.title}</b>
       </text>
       {props.children}
@@ -29,9 +18,9 @@ function Panel(props: { title: string; children: any }) {
 
 function Field(props: { label: string; value: string; fg?: string }) {
   return (
-    <text fg={props.fg ?? THEME.good}>
-      <span {...sg(THEME.dim)}>{props.label.padEnd(6)}</span>
-      <span {...sg(props.fg ?? THEME.good)}>{props.value}</span>
+    <text fg={props.fg ?? getTheme().good}>
+      <span {...sg(getTheme().dim)}>{props.label.padEnd(6)}</span>
+      <span {...sg(props.fg ?? getTheme().good)}>{props.value}</span>
     </text>
   )
 }
@@ -39,9 +28,9 @@ function Field(props: { label: string; value: string; fg?: string }) {
 export function Sidebar(props: { width?: number }) {
   const usageColour = () => {
     const pct = contextPercent()
-    if (pct >= 90) return THEME.bad
-    if (pct >= 70) return THEME.warn
-    return THEME.good
+    if (pct >= 90) return getTheme().bad
+    if (pct >= 70) return getTheme().warn
+    return getTheme().good
   }
 
   const contextLine = () => {
@@ -61,24 +50,44 @@ export function Sidebar(props: { width?: number }) {
       overflow="hidden"
       border
       borderStyle="rounded"
-      borderColor={THEME.track}
+      borderColor={getTheme().track}
       paddingLeft={1}
       paddingRight={1}
       paddingTop={1}
     >
-      <text fg={THEME.accent}>
+      <text fg={getTheme().accent}>
         <b>rokaru</b>
       </text>
-      <text fg={THEME.dim}>private session</text>
+      <text fg={getTheme().dim}>private session</text>
 
       <box flexDirection="column" marginTop={1}>
+        <Show when={todos().length > 0}>
+          <Panel title="Todo">
+            <For each={todos()}>
+              {(todo) => (
+                <text
+                  fg={
+                    todo.status === "completed"
+                      ? getTheme().dim
+                      : todo.status === "in_progress"
+                        ? getTheme().accent
+                        : getTheme().text
+                  }
+                >
+                  {`${todo.status === "completed" ? "[✓]" : todo.status === "in_progress" ? "[•]" : "[ ]"} ${todo.content}`}
+                </text>
+              )}
+            </For>
+          </Panel>
+        </Show>
+
         <Panel title="Session Context">
           <text fg={usageColour()}>
             <span {...sg(usageColour())}>{barParts().filled}</span>
-            <span {...sg(THEME.dim)}>{barParts().track}</span>
-            <span {...sg(THEME.text)}>{` ${Math.round(contextPercent())}%`}</span>
+            <span {...sg(getTheme().dim)}>{barParts().track}</span>
+            <span {...sg(getTheme().text)}>{` ${Math.round(contextPercent())}%`}</span>
           </text>
-          <text fg={THEME.dim}>{contextLine()}</text>
+          <text fg={getTheme().dim}>{contextLine()}</text>
         </Panel>
 
         <Panel title="Model Speed">
@@ -87,31 +96,40 @@ export function Sidebar(props: { width?: number }) {
           <Field label="OUT" value={metrics().outputTokens > 0 ? formatInt(metrics().outputTokens) : "--"} />
         </Panel>
 
-        <Panel title="Model">
-          <text fg={THEME.blue}>{model() || "none"}</text>
-          <text fg={THEME.dim}>reasoning {showReasoning() ? "on" : "off"}</text>
-        </Panel>
-
-        <Panel title="Session">
-          <text fg={THEME.dim}>{`state ${status()}`}</text>
-          <text fg={THEME.dim}>{workspace() || ""}</text>
-          <Show when={allowedTools().length > 0}>
-            <text fg={THEME.warn}>{`auto-allow ${allowedTools().join(" ")}`}</text>
-          </Show>
-        </Panel>
-
-        <Panel title="Privacy">
-          <Show when={webEnabled()} fallback={<text fg={THEME.good}>loopback only</text>}>
-            <text fg={THEME.warn}>web: read-only</text>
-          </Show>
-          <text fg={THEME.good}>ram-only session</text>
-          <text fg={THEME.dim}>wiped on exit</text>
-        </Panel>
+        <Show when={mcpServers().length > 0}>
+          <Panel title="MCP">
+            <For each={mcpServers()}>
+              {(server) => (
+                <text
+                  fg={
+                    server.status === "connected"
+                      ? getTheme().good
+                      : server.status === "error"
+                        ? getTheme().bad
+                        : server.status === "connecting"
+                          ? getTheme().accent
+                          : getTheme().dim
+                  }
+                >
+                  {`${
+                    server.status === "connected"
+                      ? "✓"
+                      : server.status === "error"
+                        ? "✗"
+                        : server.status === "connecting"
+                          ? "…"
+                          : "○"
+                  } ${server.name}${server.status === "connected" ? ` ${server.tools}` : ""}`}
+                </text>
+              )}
+            </For>
+          </Panel>
+        </Show>
       </box>
 
       <box flexGrow={1} />
       <box flexShrink={0} marginTop={1}>
-        <text fg={THEME.dim}>{`rokaru v${VERSION}`}</text>
+        <text fg={getTheme().dim}>{`rokaru v${VERSION}`}</text>
       </box>
     </box>
   )

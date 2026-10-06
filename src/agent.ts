@@ -1,7 +1,9 @@
 import type { RokaruConfig } from "./config"
 import { streamChat, type ChatMessage, type ContentPart, type ToolCall, type Usage } from "./omlx"
-import { TOOL_MAP, toolSchemas } from "./tools"
+import { getTool, toolSchemas } from "./tools"
+import { redactSecrets } from "./redact"
 import { clearWebAllowlist } from "./web"
+import { clearSnapshots } from "./undo"
 import * as store from "./store"
 
 let history: ChatMessage[] = []
@@ -15,13 +17,17 @@ export function resetHistory(): void {
   history = []
   warnedContext = false
   clearWebAllowlist()
+  clearSnapshots()
 }
 
-function systemPrompt(config: RokaruConfig): string {
-  const note = config.web?.enabled
+function systemPrompt(config: RokaruConfig, planMode: boolean): string {
+  const mode = planMode
+    ? " You are in PLAN mode: you may only read and search - do not modify files or run commands. Produce a concrete, ordered plan and stop; the user will switch to build mode to execute it."
+    : " You are in BUILD mode: you may edit files and run commands, asking permission as required."
+  const web = config.web?.enabled
     ? " You can search the web read-only with web_search, then read a result with web_fetch. You cannot post or send data anywhere."
     : " You have no network access; do not attempt to reach any host."
-  return config.systemPrompt + note
+  return config.systemPrompt + mode + web
 }
 
 export interface Attachment {
@@ -85,7 +91,10 @@ async function streamOnce(
   options: TurnOptions,
   assistantId: string,
 ): Promise<{ content: string; finishReason: string; firstTokenAt: number; hadTools: boolean }> {
-  const messages: ChatMessage[] = [{ role: "system", content: systemPrompt(options.config) }, ...history]
+  const messages: ChatMessage[] = [
+    { role: "system", content: systemPrompt(options.config, store.mode() === "plan") },
+    ...history,
+  ]
   const startedAt = performance.now()
   let content = ""
   let reasoning = ""
@@ -117,7 +126,7 @@ async function streamOnce(
     {
       model: options.model,
       messages,
-      tools: toolSchemas(options.config.web?.enabled === true),
+      tools: toolSchemas(options.config.web?.enabled === true, store.mode() === "plan"),
       temperature: options.config.sampling.temperature,
       topP: options.config.sampling.topP,
       topK: options.config.sampling.topK,
@@ -203,20 +212,30 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
   const callImages = new Map<string, string[]>()
 
   const executeCall = async (assistantId: string, call: { id: string; name: string; args: string }): Promise<string> => {
-    const tool = TOOL_MAP.get(call.name)
+    const tool = getTool(call.name)
     if (!tool) {
       const result = `error: unknown tool '${call.name}'`
       store.updateToolPart(assistantId, call.id, { status: "error", result })
       return result
     }
-    if (tool.destructive && !store.isToolAllowed(call.name)) {
-      const decision = await store.requestPermission(call.name, call.args || "{}", true)
-      if (decision === "deny") {
-        const result = "The user denied permission to run this tool."
-        store.updateToolPart(assistantId, call.id, { status: "denied", result })
-        return result
+    if (tool.destructive) {
+      const parsed = parseArgs(call.args)
+      const commandWord =
+        tool.name === "bash" ? String(parsed?.command ?? "").trim().split(/\s+/)[0] ?? "" : ""
+      const alreadyAllowed =
+        tool.name === "bash" ? store.isCommandAllowed(commandWord) : store.isToolAllowed(call.name)
+      if (!alreadyAllowed) {
+        const decision = await store.requestPermission(call.name, call.args || "{}", true)
+        if (decision === "deny") {
+          const result = "The user denied permission to run this tool."
+          store.updateToolPart(assistantId, call.id, { status: "denied", result })
+          return result
+        }
+        if (decision === "always") {
+          if (tool.name === "bash" && commandWord) store.allowCommand(commandWord)
+          else store.allowTool(call.name)
+        }
       }
-      if (decision === "always") store.allowTool(call.name)
     }
     store.setStatus("tool")
     store.setStatusDetail(call.name)
@@ -224,19 +243,22 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
     try {
       const callCtx = {
         ...baseCtx,
-        onDiff: (diff: import("./diff").DiffLine[]) => store.updateToolPart(assistantId, call.id, { diff }),
+        onDiff: (diff: import("./diff").DiffLine[]) =>
+          store.updateToolPart(assistantId, call.id, {
+            diff: diff.map((line) => ({ ...line, text: redactSecrets(line.text) })),
+          }),
         onImage: (dataUrl: string) => {
           const list = callImages.get(call.id) ?? []
           list.push(dataUrl)
           callImages.set(call.id, list)
         },
       }
-      const result = await tool.run(parseArgs(call.args), callCtx)
+      const result = redactSecrets(await tool.run(parseArgs(call.args), callCtx))
       store.updateToolPart(assistantId, call.id, { status: "ok", result })
       return result
     } catch (err) {
       if ((err as Error).name === "AbortError") throw err
-      const result = `error: ${(err as Error).message}`
+      const result = `error: ${redactSecrets((err as Error).message)}`
       store.updateToolPart(assistantId, call.id, { status: "error", result })
       return result
     }
@@ -284,7 +306,7 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
 
       // Read-only tools can run together; anything that writes or executes waits.
       const isReadOnly = (call: { name: string }) => {
-        const tool = TOOL_MAP.get(call.name)
+        const tool = getTool(call.name)
         return tool !== undefined && !tool.destructive
       }
       const concurrent = ordered.filter(isReadOnly)

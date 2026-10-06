@@ -28,6 +28,17 @@ export interface WebConfig {
   fetchOnlySearchResults: boolean
 }
 
+export interface McpServerConfig {
+  command: string
+  args?: string[]
+  env?: Record<string, string>
+}
+
+export interface McpConfig {
+  // Local stdio MCP servers. Each is spawned as a child process.
+  servers: Record<string, McpServerConfig>
+}
+
 export interface RokaruConfig {
   baseURL: string
   systemPrompt: string
@@ -36,6 +47,7 @@ export interface RokaruConfig {
   sampling: SamplingConfig
   sandbox: SandboxConfig
   web: WebConfig
+  mcp: McpConfig
 }
 
 export const CONFIG_DIR = join(homedir(), ".config", "rokaru")
@@ -65,11 +77,14 @@ export const DEFAULT_CONFIG: RokaruConfig = {
   },
   web: {
     enabled: false,
-    searchURL: "https://html.duckduckgo.com/html/",
+    searchURL: "https://search.brave.com/search?q={query}",
     maxResults: 5,
     maxBytes: 600_000,
     timeoutMs: 15_000,
     fetchOnlySearchResults: true,
+  },
+  mcp: {
+    servers: {},
   },
 }
 
@@ -99,6 +114,7 @@ function mergeConfig(partial: Partial<RokaruConfig>): RokaruConfig {
     sampling: { ...DEFAULT_CONFIG.sampling, ...(partial.sampling ?? {}) },
     sandbox: { ...DEFAULT_CONFIG.sandbox, ...(partial.sandbox ?? {}) },
     web: { ...DEFAULT_CONFIG.web, ...(partial.web ?? {}) },
+    mcp: { servers: { ...DEFAULT_CONFIG.mcp.servers, ...(partial.mcp?.servers ?? {}) } },
   }
 }
 

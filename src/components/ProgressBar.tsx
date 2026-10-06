@@ -2,8 +2,8 @@
 import { createEffect, createSignal, onCleanup, Show } from "solid-js"
 import { useTerminalDimensions } from "@opentui/solid"
 import { homedir } from "node:os"
-import { THEME } from "../theme"
-import { model, status, statusDetail, workspace } from "../store"
+import { getTheme } from "../theme"
+import { status, statusDetail, workspace } from "../store"
 
 const MAX_WIDTH = 16
 
@@ -49,15 +49,14 @@ export function ProgressBar() {
       <Show
         when={busy()}
         fallback={
-          <text fg={THEME.dim}>
-            <span {...{ style: { fg: THEME.good } }}>{"◧ "}</span>
-            <span {...{ style: { fg: THEME.dim } }}>{shorten(workspace())}</span>
-            <span {...{ style: { fg: THEME.track } }}>{model() ? `   ·   ${model()}` : ""}</span>
+          <text fg={getTheme().dim}>
+            <span {...{ style: { fg: getTheme().meter } }}>{"◧ "}</span>
+            <span {...{ style: { fg: getTheme().dim } }}>{shorten(workspace())}</span>
           </text>
         }
       >
-        <text fg={THEME.accent}>{cells()}</text>
-        <text fg={THEME.dim}>{`  ${statusDetail() || status()}   esc interrupt`}</text>
+        <text fg={getTheme().meter}>{cells()}</text>
+        <text fg={getTheme().dim}>{`  ${statusDetail() || status()}   esc interrupt`}</text>
       </Show>
     </box>
   )

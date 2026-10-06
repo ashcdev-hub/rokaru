@@ -3,6 +3,52 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.3.0] - 2026-10-06
+
+### Added
+
+- **Plan / build modes.** `/plan` is read-only (no writing or exec tools are
+  offered); `/build` restores full editing. Shown in the sidebar.
+- **`todo_write` tool** — the model keeps a task list, rendered as a checklist.
+- **Ctrl+P command palette** and **`/find <text>`** transcript search.
+- **`/undo`** — reverts the model's last file edit from in-memory snapshots.
+- **Secret redaction** — credential shapes (AWS/GitHub/OpenAI keys, JWTs,
+  private keys, `password=…`, URL credentials) are masked in tool output.
+- **Bash permission patterns** — "always allow" remembers the leading command
+  word (e.g. `git`) rather than the whole tool.
+- **MCP client (local stdio).** Declare servers under `mcp.servers`. They start
+  **disabled on every launch** and are opt-in per session, so a fresh start has
+  no extra tool schemas. `/mcp` opens an interactive panel (`↑`/`↓`, `enter` to
+  toggle, `esc`) with per-server status (connected / disabled / error + tool
+  count), mirrored in the sidebar **MCP** panel. Read-only tools
+  (`readOnlyHint`) run automatically, the rest ask permission; servers are shut
+  down on exit and toggling isn't persisted.
+- **`tab`** switches plan/build; **`/exit`** quits (alias `/quit`).
+- **`/themes`** (alias `/theme`) — live colour-theme picker with six built-in
+  palettes (slate, github, nord, dracula, solarized, rosepine) and a keyboard
+  custom-theme editor. Session-only, like the rest of rokaru.
+
+### Fixed
+
+- **Web search works again.** DuckDuckGo (and then Bing) began serving
+  anti-bot challenge pages, so `web_search` returns results via a keyless
+  fallback chain — **Brave → Bing → DuckDuckGo** — with parsers for each and
+  Bing/DDG redirect unwrapping. `searchURL` (with `{query}`) overrides the
+  primary engine.
+
+### Changed
+
+- Prompt panel: removed the `prompt` title, added a `Build/Plan · <model>`
+  footer, and put a coloured left gutter line that reflects the mode.
+- Clearer colours: **build = amber**, **plan = light blue**, the progress meter
+  is **purple**, and mode (identity) is kept separate from activity.
+- Sidebar trimmed to Session Context and Model Speed; the mode/model line lives
+  in the prompt footer, and the toast appears inside the assistant pane.
+- More readable replies: body text softened from pure white, headings and
+  emphasis in amber, inline code green, and numbers/dates/times/measurements
+  auto-highlighted. A **Todo** panel now shows in the sidebar while the agent
+  works through a task list, and the transcript labels replies **agent**.
+
 ## [0.2.0] - 2026-10-06
 
 Substantial feature release: images, read-only web, a richer TUI, commands, and

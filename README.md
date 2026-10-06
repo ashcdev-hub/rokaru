@@ -42,33 +42,77 @@ cd ~/some/project
 rokaru
 ```
 
-`enter` send · `shift+enter` newline · `esc` abort · `ctrl+r` toggle all thinking ·
-`ctrl+o` expand tool output · `ctrl+c` quit. `↑`/`↓` recall earlier prompts.
-Click a **Thought** line to expand/collapse that message's reasoning. Tool calls
-render as their own panels (with red/green diffs for edits), and a moving meter
-shows while the model is working. Selecting text with the mouse copies it.
+`enter` send · `shift+enter` newline · `esc` abort · `tab` switch plan/build ·
+`ctrl+r` toggle all thinking · `ctrl+o` expand tool output · `ctrl+p` command
+palette · `ctrl+c` quit. `↑`/`↓` recall earlier prompts. Click a **Thought** line
+to expand/collapse that message's reasoning. Tool calls render as their own panels
+(with red/green diffs for edits), and a moving meter shows while the model is
+working. Selecting text copies it.
+
+## Modes
+
+- **build** (default) — full editing and command running.
+- **plan** — read-only: the model can read, search, browse and plan, but the
+  writing/exec tools aren't even offered. Switch with `/plan` and `/build` (also
+  in the `ctrl+p` palette). Build is amber and plan is light blue; the mode and
+  active model show on the prompt footer. Replies render as markdown with
+  numbers, dates, emphasis and inline code coloured for readability; a **Todo**
+  panel appears in the sidebar while the agent works through a task list, and an
+  **MCP** panel lists connected servers once you enable any. The sidebar
+  otherwise keeps Session Context and Model Speed.
 
 ## Commands
 
-Type `/` for a menu (tab completes):
+Type `/` for a menu (tab completes), or `ctrl+p` for the palette:
 
-- `/model` — switch model (list re-fetched from oMLX), or `/model <name>` to
-  switch directly.
+- `/model` — switch model (list re-fetched from oMLX), or `/model <name>`.
+- `/plan`, `/build` — toggle read-only planning / full editing.
 - `/image <path>` — attach an image (png/jpg/jpeg/gif/webp/bmp) to your next
-  message; the model sees it. The model can also open images itself with the
-  `view_image` tool.
+  message; the model sees it. The model can also open images itself with
+  `view_image`.
 - `/compact` — summarise the conversation to reclaim context.
+- `/undo` — revert the model's last file edit (in-memory; also wiped on exit).
+- `/find <text>` — search the conversation.
 - `/clear`, `/new` — start over.
 - `/help` — list commands.
+- `/mcp` — enable/disable MCP servers (interactive panel).
+- `/themes` — switch colour theme (alias `/theme`). See below.
+- `/exit` — quit (the alias `/quit` resolves to it).
 
 A prompt sent while the model is working is queued and sent when it's free.
 
 ## Tools
 
-`read_file`, `list_dir`, `glob`, `grep`, `view_image` run automatically;
-`write_file`, `edit_file`, `bash` ask first. Choose **allow once**,
+`read_file`, `list_dir`, `glob`, `grep`, `view_image`, `todo_write` run
+automatically; `write_file`, `edit_file`, `bash` ask first. Choose **allow once**,
 **always allow** (stops asking for that tool for the rest of the session) or
-**deny** with `↑`/`↓` and `enter` (or `y`/`a`/`n`).
+**deny** with `↑`/`↓` and `enter` (or `y`/`a`/`n`). For `bash`, "always allow"
+remembers just the leading command word (e.g. `git`). Tool output is scanned for
+credential shapes and masked before it reaches the model.
+
+## MCP servers (optional)
+
+rokaru speaks **stdio** MCP only (local child processes) — remote `url`-based
+servers aren't supported. Declare them under `mcp.servers`; they start
+**disabled on every launch** and are opt-in per session, so a fresh start stays
+fast with no extra tool schemas in the prompt.
+
+```json
+"mcp": {
+  "servers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/some/path"]
+    }
+  }
+}
+```
+
+Run **`/mcp`** for an interactive panel — `↑`/`↓` to move, `enter` to toggle a
+server on/off, `esc` to close. Each server's status (connected / disabled /
+error, with tool count) shows there and in the sidebar **MCP** panel. Read-only
+tools (MCP `readOnlyHint`) run automatically; everything else asks first.
+Servers are shut down when rokaru exits; toggling is session-only, not saved.
 
 ## Web access (optional, read-only)
 
@@ -88,19 +132,33 @@ It is built to only ever **read**:
   `fc00::/7`) are refused, and every redirect is re-checked.
 - **Bounded.** Size and time caps on every request.
 
-Enabling it means the harness is no longer strictly loopback-only; the sidebar
-Privacy panel shows `web: read-only` while it's on.
+Enabling it means the harness is no longer strictly loopback-only; rokaru shows
+a `web access enabled (read-only)` toast when it starts.
 
 ```json
 "web": {
   "enabled": true,
-  "searchURL": "https://html.duckduckgo.com/html/",
+  "searchURL": "https://search.brave.com/search?q={query}",
   "maxResults": 5,
   "maxBytes": 600000,
   "timeoutMs": 15000,
   "fetchOnlySearchResults": true
 }
 ```
+
+Search uses a chain of keyless engines (Brave → Bing → DuckDuckGo) because
+scraped engines block automated clients over time; it falls through until one
+returns results, and you can override `searchURL` (use `{query}`, or point it at
+a SearxNG instance).
+
+## Themes
+
+`/themes` (or `/theme`) opens a picker for the built-in palettes — **slate,
+github, nord, dracula, solarized, rosepine**. `↑`/`↓` to move, `enter` to apply
+(colours update live), `esc` to close. Pick **new theme** to build a custom
+palette: `↑`/`↓` choose a role, `←`/`→` cycle its colour, `enter` saves it as
+`custom`/`custom-2` and applies it. Custom themes are session-only (wiped on
+exit, like everything else).
 
 ## Config
 
@@ -112,7 +170,9 @@ Privacy panel shows `web: read-only` while it's on.
   "systemPrompt": "You are rokaru...",
   "inputHeight": 8,
   "sampling": { "temperature": 0.7, "topP": 0.95, "topK": 20, "maxTokens": 4096 },
-  "sandbox": { "extraWritePaths": [] }
+  "sandbox": { "extraWritePaths": [] },
+  "web": { "enabled": false },
+  "mcp": { "servers": {} }
 }
 ```
 
@@ -120,10 +180,11 @@ Privacy panel shows `web: read-only` while it's on.
 
 ```sh
 bun run test:security   # sandbox, loopback guard, protected paths
-bun run test:unit       # diff engine + edit diffs
+bun run test:unit       # diff engine, tool schemas/modes, redaction, highlighting, themes
 bun run test:render     # TUI snapshots + selection-to-clipboard
 bun run test:agent      # full agent loop (needs oMLX)
 bun run test:image      # /image + view_image (needs oMLX)
 bun run test:web        # web safety guards + live search/fetch (needs network)
+bun run test:mcp        # MCP client against a mock stdio server
 bun run typecheck
 ```

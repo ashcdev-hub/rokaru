@@ -1,6 +1,6 @@
 /** @jsxImportSource @opentui/solid */
 import { createSignal, onMount, Show } from "solid-js"
-import { THEME } from "../theme"
+import { getTheme } from "../theme"
 import { listModels, type ModelInfo } from "../omlx"
 import { formatCompact } from "../metrics"
 import * as store from "../store"
@@ -31,14 +31,14 @@ export function SwitchModel(props: {
   return (
     <box width="100%" height="100%" flexDirection="column" justifyContent="center" alignItems="center">
       <box flexDirection="column" alignItems="center">
-        <text fg={THEME.accent}>
+        <text fg={getTheme().accent}>
           <b>switch model</b>
         </text>
-        <text fg={THEME.dim}>{`current: ${store.model() || "none"}`}</text>
-        <text fg={THEME.text}>{""}</text>
+        <text fg={getTheme().dim}>{`current: ${store.model() || "none"}`}</text>
+        <text fg={getTheme().text}>{""}</text>
         <Show
           when={models().length > 0}
-          fallback={<text fg={THEME.dim}>loading models…</text>}
+          fallback={<text fg={getTheme().dim}>loading models…</text>}
         >
           <select
             focused={true}
@@ -55,11 +55,11 @@ export function SwitchModel(props: {
             }}
           />
         </Show>
-        <text fg={THEME.text}>{""}</text>
+        <text fg={getTheme().text}>{""}</text>
         <Show when={error().length > 0}>
-          <text fg={THEME.warn}>{error()}</text>
+          <text fg={getTheme().warn}>{error()}</text>
         </Show>
-        <text fg={THEME.dim}>↑/↓ select · enter confirm · esc cancel</text>
+        <text fg={getTheme().dim}>↑/↓ select · enter confirm · esc cancel</text>
       </box>
     </box>
   )

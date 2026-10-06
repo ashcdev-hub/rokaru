@@ -1,6 +1,6 @@
 /** @jsxImportSource @opentui/solid */
 import { Show } from "solid-js"
-import { THEME } from "../theme"
+import { getTheme } from "../theme"
 import * as store from "../store"
 import { InputBox } from "./InputBox"
 import { MessageList } from "./MessageList"
@@ -22,8 +22,8 @@ export function ChatView(props: {
       <box flexGrow={1} flexDirection="column" overflow="hidden">
         <MessageList />
         <Show when={store.error()}>
-          <box border borderStyle="rounded" borderColor={THEME.bad} paddingLeft={1} flexShrink={0}>
-            <text fg={THEME.bad}>{`error: ${store.error()}`}</text>
+          <box border borderStyle="rounded" borderColor={getTheme().bad} paddingLeft={1} flexShrink={0}>
+            <text fg={getTheme().bad}>{`error: ${store.error()}`}</text>
           </box>
         </Show>
         <Show when={store.permission()}>
@@ -31,7 +31,7 @@ export function ChatView(props: {
         </Show>
         <Show when={store.pendingImages().length > 0}>
           <box flexDirection="row" flexShrink={0} paddingLeft={1}>
-            <text fg={THEME.accent}>
+            <text fg={getTheme().accent}>
               {`📎 ${store.pendingImages().map((image) => image.name).join("  ")}  · send to attach`}
             </text>
           </box>
@@ -45,9 +45,9 @@ export function ChatView(props: {
           onContentChange={props.onContentChange}
         />
         <ProgressBar />
+        <Toast />
       </box>
       <Sidebar width={34} />
-      <Toast />
     </box>
   )
 }

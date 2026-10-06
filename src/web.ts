@@ -208,7 +208,9 @@ export interface SearchResult {
   snippet: string
 }
 
-function unwrapRedirect(href: string): string {
+type SearchParser = (html: string, max: number) => SearchResult[]
+
+function unwrapDdg(href: string): string {
   try {
     const url = new URL(href, "https://duckduckgo.com")
     if (url.hostname.endsWith("duckduckgo.com") && url.pathname.startsWith("/l/")) {
@@ -221,28 +223,137 @@ function unwrapRedirect(href: string): string {
   }
 }
 
-export async function webSearch(query: string, config: WebConfig): Promise<SearchResult[]> {
-  const res = await safeFetch(config.searchURL, {
-    method: "POST",
-    body: `q=${encodeURIComponent(query)}`,
-    contentType: "application/x-www-form-urlencoded",
-    maxBytes: config.maxBytes,
-    timeoutMs: config.timeoutMs,
-  })
-  const links = [...res.text.matchAll(/<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi)]
-  const snippets = [...res.text.matchAll(/<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi)]
-  const results: SearchResult[] = []
-  for (let i = 0; i < links.length && results.length < config.maxResults; i++) {
-    const url = unwrapRedirect(links[i][1])
-    if (!/^https?:\/\//i.test(url)) continue
-    results.push({
-      title: stripTags(links[i][2]) || url,
-      url,
-      snippet: snippets[i] ? stripTags(snippets[i][1]) : "",
-    })
+// Bing wraps organic results in https://www.bing.com/ck/a?…&u=a1<base64url>.
+function unwrapBing(href: string): string {
+  const decoded = decodeEntities(href)
+  try {
+    const url = new URL(decoded, "https://www.bing.com")
+    if (url.hostname.endsWith("bing.com") && url.pathname.startsWith("/ck/a")) {
+      let u = url.searchParams.get("u")
+      if (u) {
+        if (u.startsWith("a1")) u = u.slice(2)
+        const padded = u + "=".repeat((4 - (u.length % 4)) % 4)
+        try {
+          const real = Buffer.from(padded.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8")
+          if (/^https?:\/\//i.test(real)) return real
+        } catch {
+          // fall through
+        }
+      }
+    }
+    return url.toString()
+  } catch {
+    return decoded
   }
-  recordUrls(results.map((result) => result.url))
+}
+
+const parseDdg: SearchParser = (html, max) => {
+  const links = [...html.matchAll(/<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi)]
+  const snippets = [...html.matchAll(/<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi)]
+  const results: SearchResult[] = []
+  for (let i = 0; i < links.length && results.length < max; i++) {
+    const url = unwrapDdg(links[i][1])
+    if (!/^https?:\/\//i.test(url)) continue
+    results.push({ title: stripTags(links[i][2]) || url, url, snippet: snippets[i] ? stripTags(snippets[i][1]) : "" })
+  }
   return results
+}
+
+const parseBing: SearchParser = (html, max) => {
+  const blocks = [...html.matchAll(/<li class="b_algo"[\s\S]*?<\/li>/gi)]
+  const results: SearchResult[] = []
+  for (const block of blocks) {
+    const heading = block[0].match(/<h2[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i)
+    if (!heading) continue
+    const url = unwrapBing(heading[1])
+    if (!/^https?:\/\//i.test(url)) continue
+    const snippet = block[0].match(/<p[^>]*>([\s\S]*?)<\/p>/i)
+    results.push({ title: stripTags(heading[2]) || url, url, snippet: snippet ? stripTags(snippet[1]) : "" })
+    if (results.length >= max) break
+  }
+  return results
+}
+
+interface SearchBackend {
+  url: string
+  // "{query}" -> GET with substitution; otherwise POST form with q=query.
+  parse: SearchParser
+}
+
+const parseBrave: SearchParser = (html, max) => {
+  const segments = html.split('data-type="web"').slice(1)
+  const results: SearchResult[] = []
+  for (const segment of segments) {
+    const link = segment.match(
+      /<a href="(https?:\/\/[^"]+)"[^>]*>[\s\S]{0,4000}?class="title[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    )
+    if (!link) continue
+    const url = decodeEntities(link[1])
+    if (/brave\.com/i.test(url)) continue
+    const desc = segment.match(/class="generic-snippet[^"]*"[\s\S]*?class="content[^"]*"[^>]*>([\s\S]*?)<\/div>/i)
+    results.push({ title: stripTags(link[2]) || url, url, snippet: desc ? stripTags(desc[1]) : "" })
+    if (results.length >= max) break
+  }
+  return results
+}
+
+function parserFor(url: string): SearchParser {
+  if (url.includes("brave.")) return parseBrave
+  if (url.includes("bing.")) return parseBing
+  if (url.includes("duckduckgo")) return parseDdg
+  return (html, max) => {
+    const brave = parseBrave(html, max)
+    if (brave.length > 0) return brave
+    const bing = parseBing(html, max)
+    return bing.length > 0 ? bing : parseDdg(html, max)
+  }
+}
+
+// Tried in order until one returns results. Scraped engines break/block often,
+// hence the chain.
+const FALLBACK_BACKENDS: SearchBackend[] = [
+  { url: "https://search.brave.com/search?q={query}", parse: parseBrave },
+  { url: "https://www.bing.com/search?q={query}", parse: parseBing },
+  { url: "https://html.duckduckgo.com/html/", parse: parseDdg },
+]
+
+async function runBackend(backend: SearchBackend, query: string, config: WebConfig): Promise<SearchResult[]> {
+  const isGet = backend.url.includes("{query}")
+  const target = isGet ? backend.url.replace("{query}", encodeURIComponent(query)) : backend.url
+  const res = isGet
+    ? await safeFetch(target, { maxBytes: config.maxBytes, timeoutMs: config.timeoutMs })
+    : await safeFetch(target, {
+        method: "POST",
+        body: `q=${encodeURIComponent(query)}`,
+        contentType: "application/x-www-form-urlencoded",
+        maxBytes: config.maxBytes,
+        timeoutMs: config.timeoutMs,
+      })
+  if (res.status >= 400) throw new Error(`HTTP ${res.status}`)
+  return backend.parse(res.text, config.maxResults)
+}
+
+export async function webSearch(query: string, config: WebConfig): Promise<SearchResult[]> {
+  const backends: SearchBackend[] = []
+  if (config.searchURL) backends.push({ url: config.searchURL, parse: parserFor(config.searchURL) })
+  for (const backend of FALLBACK_BACKENDS) {
+    if (!backends.some((b) => b.url === backend.url)) backends.push(backend)
+  }
+
+  for (const backend of backends) {
+    try {
+      const results = (await runBackend(backend, query, config))
+        .filter((result) => !/^https?:\/\/([\w-]+\.)?bing\.com\//i.test(result.url))
+        .slice(0, config.maxResults)
+      if (results.length > 0) {
+        recordUrls(results.map((result) => result.url))
+        return results
+      }
+    } catch {
+      // try the next backend
+    }
+  }
+  return []
 }
 
 export async function webFetchPage(url: string, config: WebConfig): Promise<{ url: string; text: string }> {

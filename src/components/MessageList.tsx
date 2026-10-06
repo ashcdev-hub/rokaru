@@ -1,8 +1,9 @@
 /** @jsxImportSource @opentui/solid */
 import { For, Show } from "solid-js"
-import { THEME, sg } from "../theme"
+import { getTheme, sg } from "../theme"
 import { markdownStyle } from "../markdown"
-import { expandTools, messages, status, thinkingVisible, toggleThinking } from "../store"
+import { decorateAssistant } from "../highlight"
+import { expandTools, messages, status, thinkingVisible, todos, toggleThinking } from "../store"
 import type { Part, UIMessage } from "../store"
 
 const COLLAPSE_LINES = 10
@@ -16,15 +17,15 @@ function collapse(text: string, max: number): string {
 function statusColour(s: Extract<Part, { kind: "tool" }>["status"]): string {
   switch (s) {
     case "ok":
-      return THEME.panelBorder
+      return getTheme().panelBorder
     case "error":
-      return THEME.bad
+      return getTheme().bad
     case "denied":
-      return THEME.warn
+      return getTheme().warn
     case "running":
-      return THEME.accent
+      return getTheme().accent
     default:
-      return THEME.panelBorder
+      return getTheme().panelBorder
   }
 }
 
@@ -53,29 +54,29 @@ function toolHeader(name: string, argsRaw: string): { lead: string; text: string
   const args = parseArgs(argsRaw)
   switch (name) {
     case "read_file":
-      return { lead: "→", text: `Read ${args.path ?? ""}`, colour: THEME.blue }
+      return { lead: "→", text: `Read ${args.path ?? ""}`, colour: getTheme().blue }
     case "write_file":
-      return { lead: "←", text: `Write ${args.path ?? ""}`, colour: THEME.accent }
+      return { lead: "←", text: `Write ${args.path ?? ""}`, colour: getTheme().accent }
     case "edit_file":
-      return { lead: "←", text: `Edit ${args.path ?? ""}`, colour: THEME.accent }
+      return { lead: "←", text: `Edit ${args.path ?? ""}`, colour: getTheme().accent }
     case "list_dir":
-      return { lead: "→", text: `List ${args.path ?? "."}`, colour: THEME.blue }
+      return { lead: "→", text: `List ${args.path ?? "."}`, colour: getTheme().blue }
     case "glob":
-      return { lead: "→", text: `Glob ${args.pattern ?? ""}`, colour: THEME.blue }
+      return { lead: "→", text: `Glob ${args.pattern ?? ""}`, colour: getTheme().blue }
     case "grep":
-      return { lead: "→", text: `Grep ${args.pattern ?? ""}`, colour: THEME.blue }
+      return { lead: "→", text: `Grep ${args.pattern ?? ""}`, colour: getTheme().blue }
     case "bash":
-      return { lead: "$", text: args.command ?? argsRaw, colour: THEME.good }
+      return { lead: "$", text: args.command ?? argsRaw, colour: getTheme().good }
     default:
-      return { lead: "⚙", text: name, colour: THEME.tool }
+      return { lead: "⚙", text: name, colour: getTheme().tool }
   }
 }
 
 function AssistantText(props: { text: string; streaming: boolean }) {
   return (
-    <Show when={!props.streaming} fallback={<text fg={THEME.text}>{props.text}</text>}>
+    <Show when={!props.streaming} fallback={<text fg={getTheme().body}>{props.text}</text>}>
       <box flexDirection="column" width="100%">
-        <markdown content={props.text} syntaxStyle={markdownStyle()} conceal={true} />
+        <markdown content={decorateAssistant(props.text)} syntaxStyle={markdownStyle()} conceal={true} />
       </box>
     </Show>
   )
@@ -84,6 +85,29 @@ function AssistantText(props: { text: string; streaming: boolean }) {
 function ToolView(props: { part: Extract<Part, { kind: "tool" }> }) {
   const part = props.part
   const header = () => toolHeader(part.name, part.args)
+  if (part.name === "todo_write") {
+    return (
+      <box
+        flexDirection="column"
+        marginTop={1}
+        border
+        borderStyle="rounded"
+        borderColor={getTheme().panelBorder}
+        backgroundColor={getTheme().panelBg}
+        paddingLeft={1}
+        paddingRight={1}
+      >
+        <text fg={getTheme().dim}>{`todos (${todos().filter((t) => t.status === "completed").length}/${todos().length})`}</text>
+        <For each={todos()}>
+          {(todo) => (
+            <text fg={todo.status === "completed" ? getTheme().dim : todo.status === "in_progress" ? getTheme().accent : getTheme().text}>
+              {`${todo.status === "completed" ? "☑" : todo.status === "in_progress" ? "▶" : "☐"} ${todo.content}`}
+            </text>
+          )}
+        </For>
+      </box>
+    )
+  }
   return (
     <box
       flexDirection="column"
@@ -91,20 +115,20 @@ function ToolView(props: { part: Extract<Part, { kind: "tool" }> }) {
       border
       borderStyle="rounded"
       borderColor={statusColour(part.status)}
-      backgroundColor={THEME.panelBg}
+      backgroundColor={getTheme().panelBg}
       paddingLeft={1}
       paddingRight={1}
     >
       <text fg={header().colour}>
         <span {...sg(header().colour)}>{`${header().lead} `}</span>
-        <span {...sg(THEME.text)}>{header().text}</span>
-        <span {...sg(part.status === "error" ? THEME.bad : THEME.dim)}>{statusSuffix(part.status)}</span>
+        <span {...sg(getTheme().text)}>{header().text}</span>
+        <span {...sg(part.status === "error" ? getTheme().bad : getTheme().dim)}>{statusSuffix(part.status)}</span>
       </text>
       <Show
         when={part.diff && part.diff.length > 0}
         fallback={
           <Show when={part.result.length > 0}>
-            <text fg={part.status === "error" || part.status === "denied" ? THEME.bad : THEME.dim}>
+            <text fg={part.status === "error" || part.status === "denied" ? getTheme().bad : getTheme().dim}>
               {collapse(part.result, COLLAPSE_LINES)}
             </text>
           </Show>
@@ -112,7 +136,7 @@ function ToolView(props: { part: Extract<Part, { kind: "tool" }> }) {
       >
         <For each={part.diff}>
           {(line) => (
-            <text fg={line.kind === "add" ? THEME.good : line.kind === "del" ? THEME.bad : THEME.dim}>
+            <text fg={line.kind === "add" ? getTheme().good : line.kind === "del" ? getTheme().bad : getTheme().dim}>
               {`${line.kind === "add" ? "+" : line.kind === "del" ? "-" : " "} ${line.text}`}
             </text>
           )}
@@ -130,11 +154,11 @@ function ThoughtView(props: { message: UIMessage; text: string }) {
   }
   return (
     <box flexDirection="column" marginTop={1} onMouseDown={() => toggleThinking(props.message.id)}>
-      <text fg={THEME.warn}>
-        <span {...sg(THEME.warn)}>{`${expanded() ? "▾" : "▸"} ${label()}`}</span>
+      <text fg={getTheme().warn}>
+        <span {...sg(getTheme().warn)}>{`${expanded() ? "▾" : "▸"} ${label()}`}</span>
       </text>
       <Show when={expanded()}>
-        <text fg={THEME.dim}>
+        <text fg={getTheme().dim}>
           <i>{props.text}</i>
         </text>
       </Show>
@@ -160,24 +184,24 @@ function MessageView(props: { message: UIMessage; streaming: boolean }) {
       fallback={
         <box flexDirection="column" marginBottom={1} paddingLeft={1}>
           <For each={props.message.parts}>
-            {(part) => <text fg={THEME.dim}>{part.kind === "text" ? part.text : ""}</text>}
+            {(part) => <text fg={getTheme().dim}>{part.kind === "text" ? part.text : ""}</text>}
           </For>
         </box>
       }
     >
       <box flexDirection="column" marginBottom={1}>
-        <text fg={props.message.role === "user" ? THEME.accent : THEME.blue}>
-          <b>{props.message.role === "user" ? "you" : "assistant"}</b>
+        <text fg={props.message.role === "user" ? getTheme().accent : getTheme().blue}>
+          <b>{props.message.role === "user" ? "you" : "agent"}</b>
         </text>
         <box flexDirection="column" paddingLeft={1}>
           <For each={props.message.parts}>
             {(part) => <PartView message={props.message} part={part} streaming={props.streaming} />}
           </For>
           <Show when={props.message.images && props.message.images.length > 0}>
-            <text fg={THEME.dim}>{`📎 ${props.message.images!.join("  ")}`}</text>
+            <text fg={getTheme().dim}>{`📎 ${props.message.images!.join("  ")}`}</text>
           </Show>
           <Show when={props.streaming}>
-            <text fg={THEME.accent}>▌</text>
+            <text fg={getTheme().accent}>▌</text>
           </Show>
         </box>
       </box>

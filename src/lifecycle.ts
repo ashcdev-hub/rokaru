@@ -1,5 +1,6 @@
 import type { CliRenderer } from "@opentui/core"
 import { resetHistory } from "./agent"
+import { shutdownMcp } from "./mcp"
 import { resetSession } from "./store"
 
 let exiting = false
@@ -12,6 +13,11 @@ export function secureExit(renderer: CliRenderer | undefined, code = 0): never {
   try {
     resetHistory()
     resetSession()
+  } catch {
+    // ignore
+  }
+  try {
+    shutdownMcp()
   } catch {
     // ignore
   }
@@ -52,6 +58,7 @@ export function installLifecycle(renderer: CliRenderer): void {
   })
   process.on("exit", () => {
     try {
+      shutdownMcp()
       resetHistory()
       resetSession()
     } catch {

@@ -7,16 +7,22 @@ import { installLifecycle, secureExit } from "./lifecycle"
 import { listModels, type ModelInfo } from "./omlx"
 import { loadConfig, resolveApiKey } from "./config"
 import { copyToClipboard } from "./clipboard"
-import { COMMANDS, matchCommands } from "./commands"
+import { COMMANDS, matchCommands, resolveCommandName } from "./commands"
 import { imageDataUrl } from "./image"
+import { undoLast } from "./undo"
+import { connectServer, disconnectServer } from "./mcp"
+import { registerDynamicTools, unregisterDynamicTools } from "./tools"
 import { isAbsolute, resolve } from "node:path"
-import { THEME } from "./theme"
+import { getTheme, activeThemeName, setCurrentTheme, addCustomTheme, themeNames, THEMES, THEME_ROLES, THEME_COLOURS } from "./theme"
 import { VERSION } from "./version"
 import * as store from "./store"
 import { ModelPicker } from "./components/ModelPicker"
 import { AsciiLogo } from "./components/AsciiLogo"
 import { ChatView } from "./components/ChatView"
 import { SwitchModel } from "./components/SwitchModel"
+import { CommandPalette, type PaletteAction } from "./components/CommandPalette"
+import { McpPanel } from "./components/McpPanel"
+import { ThemePanel } from "./components/ThemePanel"
 import type { InputHandle } from "./components/InputBox"
 
 type Phase = "loading" | "pick" | "ready" | "error"
@@ -38,11 +44,20 @@ export function App() {
   let navigating = false
   let suppressChange = false
 
+  const mcpToolNames = new Map<string, string[]>()
+  const updateMcpStatus = (name: string, patch: Partial<store.McpServerInfo>) => {
+    store.setMcpServers((prev) => prev.map((server) => (server.name === name ? { ...server, ...patch } : server)))
+  }
+
   onMount(() => {
     installLifecycle(renderer)
     store.setWorkspace(workspace)
     store.setWebEnabled(config.web?.enabled === true)
     if (config.web?.enabled) store.showToast("web access enabled (read-only)")
+    // MCP servers are opt-in per session: never autostart, so a fresh launch
+    // always has none connected (fast prompt, no extra tool schemas).
+    const mcpEntries = Object.entries(config.mcp?.servers ?? {})
+    store.setMcpServers(mcpEntries.map(([name]) => ({ name, status: "disabled" as const, tools: 0 })))
     void (async () => {
       try {
         const models = await listModels({ baseURL: config.baseURL, apiKey: resolveApiKey() })
@@ -95,16 +110,51 @@ export function App() {
       [
         "commands:",
         "  /model [name]   switch model (or open the picker)",
+        "  /plan | /build   read-only planning mode / full editing mode",
         "  /image <path>   attach an image to your next message",
         "  /compact        summarise the conversation to free context",
+        "  /undo           revert the model's last file edit",
+        "  /find <text>    search the conversation",
         "  /clear          clear the conversation",
         "  /new            start a new conversation",
         "  /help           show this list",
+        "  /mcp            list connected MCP servers",
+        "  /themes         switch colour theme",
+        "  /exit           quit (/quit works too)",
         "",
-        "keys:  enter send · shift+enter newline · esc abort · ctrl+r reasoning",
-        "       ctrl+o expand tool output · ctrl+c quit",
+        "keys:  enter send · shift+enter newline · tab plan/build · esc abort",
+        "       ctrl+r reasoning · ctrl+o expand tools · ctrl+p commands · ctrl+c quit",
         "mouse: select any text to copy it to the clipboard",
       ].join("\n"),
+    )
+  }
+
+  const findInTranscript = (query: string) => {
+    const needle = query.toLowerCase()
+    const hits: string[] = []
+    store.messages().forEach((message, index) => {
+      for (const part of message.parts) {
+        const text =
+          part.kind === "text" || part.kind === "reasoning"
+            ? part.text
+            : part.kind === "tool"
+              ? `${part.name} ${part.args} ${part.result}`
+              : ""
+        const lower = text.toLowerCase()
+        let from = 0
+        let found = 0
+        while (found < 3) {
+          const at = lower.indexOf(needle, from)
+          if (at === -1) break
+          const snippet = text.slice(Math.max(0, at - 30), at + needle.length + 50).replace(/\s+/g, " ")
+          hits.push(`${message.role} #${index + 1}: …${snippet}…`)
+          from = at + needle.length
+          found += 1
+        }
+      }
+    })
+    store.addInfoMessage(
+      hits.length > 0 ? `matches for “${query}”:\n${hits.slice(0, 12).join("\n")}` : `no matches for “${query}”`,
     )
   }
 
@@ -115,8 +165,9 @@ export function App() {
   }
 
   const runCommand = (raw: string) => {
-    const [name, ...rest] = raw.slice(1).trim().split(/\s+/)
+    const [rawName, ...rest] = raw.slice(1).trim().split(/\s+/)
     const arg = rest.join(" ").trim()
+    const name = resolveCommandName(rawName)
     const exact = COMMANDS.find((c) => c.name === name)
     const prefix = matchCommands(name)
     const spec = exact ?? (prefix.length === 1 ? prefix[0] : undefined)
@@ -139,6 +190,48 @@ export function App() {
       case "help":
         showHelp()
         return
+      case "plan":
+        store.setMode("plan")
+        store.showToast("plan mode — read-only")
+        return
+      case "build":
+        store.setMode("build")
+        store.showToast("build mode")
+        return
+      case "find": {
+        if (arg.length === 0) {
+          store.showToast("usage: /find <text>")
+          return
+        }
+        findInTranscript(arg)
+        return
+      }
+      case "undo": {
+        store.showToast(undoLast() ?? "nothing to undo")
+        return
+      }
+      case "exit":
+        secureExit(renderer, 0)
+        return
+      case "mcp": {
+        if (store.mcpServers().length === 0) {
+          store.addInfoMessage(
+            "mcp: no servers configured.\nAdd stdio servers under mcp.servers in ~/.config/rokaru/config.json.",
+          )
+          return
+        }
+        store.setMcpPanelIndex(0)
+        store.setMcpPanel(true)
+        return
+      }
+      case "themes": {
+        const names = themeNames()
+        const active = names.indexOf(activeThemeName())
+        store.setThemeIndex(active >= 0 ? active : 0)
+        store.setThemeCustom(false)
+        store.setThemePanel(true)
+        return
+      }
       case "image": {
         if (arg.length === 0) {
           store.showToast("usage: /image <path-to-image>")
@@ -168,6 +261,121 @@ export function App() {
         return
       }
     }
+  }
+
+  const paletteActions = (): (PaletteAction & { run: () => void })[] => [
+    ...COMMANDS.map((command) => ({
+      label: `/${command.name}`,
+      description: command.description,
+      run: () => {
+        store.setPalette(false)
+        if (command.name === "model" || command.name === "image" || command.name === "find") {
+          inputHandle?.setText(`/${command.name} `)
+          inputHandle?.focus()
+        } else {
+          runCommand(`/${command.name}`)
+        }
+      },
+    })),
+    {
+      label: "switch model",
+      description: "open the model picker",
+      run: () => {
+        store.setPalette(false)
+        store.setSwitchingModel(true)
+      },
+    },
+    {
+      label: store.mode() === "plan" ? "switch to build mode" : "switch to plan mode",
+      description: "toggle read-only planning",
+      run: () => {
+        store.setPalette(false)
+        store.setMode(store.mode() === "plan" ? "build" : "plan")
+      },
+    },
+    {
+      label: "toggle reasoning",
+      description: "show/hide all thinking",
+      run: () => {
+        store.setPalette(false)
+        store.setShowReasoning(!store.showReasoning())
+      },
+    },
+    {
+      label: "quit",
+      description: "exit rokaru (wipes the session)",
+      run: () => secureExit(renderer, 130),
+    },
+  ]
+
+  // MCP servers are toggled here, per session only (never autostarted).
+  const toggleMcp = async (index: number) => {
+    const entry = store.mcpServers()[index]
+    if (!entry) return
+    const serverConfig = config.mcp?.servers?.[entry.name]
+    if (!serverConfig) return
+    if (entry.status === "connected") {
+      disconnectServer(entry.name)
+      unregisterDynamicTools(mcpToolNames.get(entry.name) ?? [])
+      mcpToolNames.delete(entry.name)
+      updateMcpStatus(entry.name, { status: "disabled", tools: 0, error: undefined })
+      store.showToast(`mcp ${entry.name}: off`)
+      return
+    }
+    updateMcpStatus(entry.name, { status: "connecting", tools: 0, error: undefined })
+    const result = await connectServer(entry.name, serverConfig)
+    if (result.error) {
+      updateMcpStatus(entry.name, { status: "error", tools: 0, error: result.error })
+      store.showToast(`mcp ${entry.name}: ${result.error}`)
+    } else {
+      registerDynamicTools(result.tools)
+      mcpToolNames.set(entry.name, result.toolNames)
+      updateMcpStatus(entry.name, { status: "connected", tools: result.tools.length })
+      store.showToast(`mcp ${entry.name}: ${result.tools.length} tools`)
+    }
+  }
+
+  // Theme editor actions (keyboard-driven from the /themes panel).
+  const applyTheme = (name: string) => {
+    if (setCurrentTheme(name)) store.showToast(`theme · ${name}`)
+    store.setThemePanel(false)
+  }
+
+  const startCustomTheme = () => {
+    store.setThemeDraft({ ...getTheme() })
+    store.setThemeCustomRole(0)
+    store.setThemeCustom(true)
+  }
+
+  const cancelCustomTheme = () => {
+    store.setThemeCustom(false)
+    store.setThemeDraft(undefined)
+  }
+
+  const cycleThemeRole = (delta: number) => {
+    const draft = store.themeDraft()
+    if (!draft) return
+    const role = THEME_ROLES[store.themeCustomRole()]
+    const at = THEME_COLOURS.indexOf(draft[role])
+    const next =
+      at === -1 ? (delta > 0 ? 0 : THEME_COLOURS.length - 1) : (at + delta + THEME_COLOURS.length) % THEME_COLOURS.length
+    store.setThemeDraft({ ...draft, [role]: THEME_COLOURS[next] })
+  }
+
+  const saveCustomTheme = () => {
+    const draft = store.themeDraft()
+    if (!draft) return
+    let name = "custom"
+    let n = 2
+    while (THEMES[name]) name = `custom-${n++}`
+    if (!addCustomTheme(name, draft)) {
+      store.showToast("could not create theme")
+      return
+    }
+    setCurrentTheme(name)
+    cancelCustomTheme()
+    store.setThemePanel(false)
+    store.showToast(`theme · ${name} (created)`)
   }
 
   const send = (text: string) => {
@@ -250,6 +458,92 @@ export function App() {
       return
     }
 
+    if (key.ctrl && key.name === "p") {
+      key.preventDefault()
+      store.setPaletteIndex(0)
+      store.setPalette(true)
+      return
+    }
+
+    if (store.palette()) {
+      const actions = paletteActions()
+      if (key.name === "escape") {
+        key.preventDefault()
+        store.setPalette(false)
+      } else if (key.name === "up") {
+        key.preventDefault()
+        store.setPaletteIndex(Math.max(0, store.paletteIndex() - 1))
+      } else if (key.name === "down") {
+        key.preventDefault()
+        store.setPaletteIndex(Math.min(actions.length - 1, store.paletteIndex() + 1))
+      } else if (key.name === "return" || key.name === "enter") {
+        key.preventDefault()
+        actions[store.paletteIndex()]?.run()
+      }
+      return
+    }
+
+    if (store.mcpPanel()) {
+      const list = store.mcpServers()
+      if (key.name === "escape") {
+        key.preventDefault()
+        store.setMcpPanel(false)
+      } else if (key.name === "up") {
+        key.preventDefault()
+        store.setMcpPanelIndex(Math.max(0, store.mcpPanelIndex() - 1))
+      } else if (key.name === "down") {
+        key.preventDefault()
+        store.setMcpPanelIndex(Math.min(Math.max(0, list.length - 1), store.mcpPanelIndex() + 1))
+      } else if (key.name === "return" || key.name === "enter" || key.name === "space") {
+        key.preventDefault()
+        void toggleMcp(store.mcpPanelIndex())
+      }
+      return
+    }
+
+    if (store.themePanel()) {
+      if (store.themeCustom()) {
+        if (key.name === "escape") {
+          key.preventDefault()
+          cancelCustomTheme()
+        } else if (key.name === "up") {
+          key.preventDefault()
+          store.setThemeCustomRole(Math.max(0, store.themeCustomRole() - 1))
+        } else if (key.name === "down") {
+          key.preventDefault()
+          store.setThemeCustomRole(Math.min(THEME_ROLES.length - 1, store.themeCustomRole() + 1))
+        } else if (key.name === "left") {
+          key.preventDefault()
+          cycleThemeRole(-1)
+        } else if (key.name === "right") {
+          key.preventDefault()
+          cycleThemeRole(1)
+        } else if (key.name === "return" || key.name === "enter") {
+          key.preventDefault()
+          saveCustomTheme()
+        }
+      } else {
+        const names = themeNames()
+        const rows = names.length + 1
+        if (key.name === "escape") {
+          key.preventDefault()
+          store.setThemePanel(false)
+        } else if (key.name === "up") {
+          key.preventDefault()
+          store.setThemeIndex(Math.max(0, store.themeIndex() - 1))
+        } else if (key.name === "down") {
+          key.preventDefault()
+          store.setThemeIndex(Math.min(rows - 1, store.themeIndex() + 1))
+        } else if (key.name === "return" || key.name === "enter") {
+          key.preventDefault()
+          const index = store.themeIndex()
+          if (index >= names.length) startCustomTheme()
+          else applyTheme(names[index])
+        }
+      }
+      return
+    }
+
     if (store.switchingModel()) {
       if (key.name === "escape") {
         key.preventDefault()
@@ -312,6 +606,14 @@ export function App() {
           return
         }
       }
+      // Tab switches plan/build mode (unless the command menu is open above).
+      if (key.name === "tab") {
+        key.preventDefault()
+        const next = store.mode() === "plan" ? "build" : "plan"
+        store.setMode(next)
+        store.showToast(`mode: ${next}`)
+        return
+      }
       if ((key.name === "up" && (navigating || store.inputValue() === "")) || (key.name === "down" && navigating)) {
         key.preventDefault()
         recall(key.name === "up" ? -1 : 1)
@@ -339,12 +641,33 @@ export function App() {
       <Show
         when={store.switchingModel()}
         fallback={
-          <ChatView
-            onSubmit={submit}
-            inputHeight={config.inputHeight}
-            onReady={(handle) => (inputHandle = handle)}
-            onContentChange={onContentChange}
-          />
+          <Show
+            when={store.palette()}
+            fallback={
+              <Show
+                when={store.mcpPanel()}
+                fallback={
+                  <Show
+                    when={store.themePanel()}
+                    fallback={
+                      <ChatView
+                        onSubmit={submit}
+                        inputHeight={config.inputHeight}
+                        onReady={(handle) => (inputHandle = handle)}
+                        onContentChange={onContentChange}
+                      />
+                    }
+                  >
+                    <ThemePanel />
+                  </Show>
+                }
+              >
+                <McpPanel servers={store.mcpServers()} />
+              </Show>
+            }
+          >
+            <CommandPalette actions={paletteActions()} onPick={(index) => paletteActions()[index]?.run()} />
+          </Show>
         }
       >
         <SwitchModel baseURL={config.baseURL} apiKey={resolveApiKey()} onSelect={switchTo} />
@@ -363,20 +686,20 @@ export function Startup(props: {
     <box width="100%" height="100%" flexDirection="column" justifyContent="center" alignItems="center">
       <box flexDirection="column" alignItems="center">
         <AsciiLogo />
-        <text fg={THEME.dim}>private local harness for oMLX</text>
-        <text fg={THEME.accent}>{`v${VERSION}`}</text>
-        <text fg={THEME.text}>{""}</text>
+        <text fg={getTheme().dim}>private local harness for oMLX</text>
+        <text fg={getTheme().accent}>{`v${VERSION}`}</text>
+        <text fg={getTheme().text}>{""}</text>
         <Show when={props.phase === "pick"}>
           <ModelPicker models={props.models} onSelect={props.onSelect} />
         </Show>
         <Show when={props.phase === "loading"}>
-          <text fg={THEME.dim}>contacting oMLX…</text>
+          <text fg={getTheme().dim}>contacting oMLX…</text>
         </Show>
         <Show when={props.phase === "error"}>
-          <text fg={THEME.bad}>{props.message}</text>
+          <text fg={getTheme().bad}>{props.message}</text>
         </Show>
-        <text fg={THEME.text}>{""}</text>
-        <text fg={THEME.dim}>ctrl+c to quit</text>
+        <text fg={getTheme().text}>{""}</text>
+        <text fg={getTheme().dim}>ctrl+c to quit</text>
       </box>
     </box>
   )

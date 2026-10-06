@@ -1,6 +1,6 @@
 /** @jsxImportSource @opentui/solid */
 import { For, Show } from "solid-js"
-import { THEME, sg } from "../theme"
+import { getTheme, sg } from "../theme"
 import { matchCommands } from "../commands"
 import { inputValue, menuIndex } from "../store"
 
@@ -18,21 +18,21 @@ export function CommandMenu() {
         flexShrink={0}
         border
         borderStyle="rounded"
-        borderColor={THEME.track}
+        borderColor={getTheme().track}
         paddingLeft={1}
         paddingRight={1}
       >
         <For each={matches()}>
           {(command, index) => (
-            <text fg={menuIndex() === index() ? THEME.good : THEME.dim}>
-              <span {...sg(menuIndex() === index() ? THEME.good : THEME.dim)}>
+            <text fg={menuIndex() === index() ? getTheme().good : getTheme().dim}>
+              <span {...sg(menuIndex() === index() ? getTheme().good : getTheme().dim)}>
                 {`${menuIndex() === index() ? "▶ " : "  "}/${command.name}`}
               </span>
-              <span {...sg(THEME.dim)}>{`  ${command.description}`}</span>
+              <span {...sg(getTheme().dim)}>{`  ${command.description}`}</span>
             </text>
           )}
         </For>
-        <text fg={THEME.dim}>tab to complete · enter to run</text>
+        <text fg={getTheme().dim}>tab to complete · enter to run</text>
       </box>
     </Show>
   )

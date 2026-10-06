@@ -1,6 +1,7 @@
 import { createSignal } from "solid-js"
 import { EMPTY_METRICS, type TurnMetrics } from "./metrics"
 import type { ModelInfo } from "./omlx"
+import type { Theme } from "./theme"
 
 export type Part =
   | { kind: "text"; text: string }
@@ -44,11 +45,44 @@ export const [showReasoning, setShowReasoning] = createSignal(false)
 export const [expandTools, setExpandTools] = createSignal(false)
 export const [inputValue, setInputValue] = createSignal("")
 export const [menuIndex, setMenuIndex] = createSignal(0)
+export const [palette, setPalette] = createSignal(false)
+export const [paletteIndex, setPaletteIndex] = createSignal(0)
 export const [contextPercent, setContextPercent] = createSignal(0)
 export const [promptTokens, setPromptTokens] = createSignal(0)
 export const [workspace, setWorkspace] = createSignal("")
 export const [switchingModel, setSwitchingModel] = createSignal(false)
 export const [webEnabled, setWebEnabled] = createSignal(false)
+
+export type Mode = "build" | "plan"
+export const [mode, setMode] = createSignal<Mode>("build")
+
+export type McpStatus = "connected" | "error" | "disabled" | "connecting"
+
+export interface McpServerInfo {
+  name: string
+  status: McpStatus
+  tools: number
+  error?: string
+}
+
+export const [mcpServers, setMcpServers] = createSignal<McpServerInfo[]>([])
+export const [mcpPanel, setMcpPanel] = createSignal(false)
+export const [mcpPanelIndex, setMcpPanelIndex] = createSignal(0)
+
+// Theme selector panel (opened by /themes).
+export const [themePanel, setThemePanel] = createSignal(false)
+export const [themeIndex, setThemeIndex] = createSignal(0)
+// Custom-theme editor state (inside the panel).
+export const [themeCustom, setThemeCustom] = createSignal(false)
+export const [themeCustomRole, setThemeCustomRole] = createSignal(0)
+export const [themeDraft, setThemeDraft] = createSignal<Theme | undefined>(undefined)
+
+export interface TodoItem {
+  content: string
+  status: "pending" | "in_progress" | "completed"
+}
+
+export const [todos, setTodos] = createSignal<TodoItem[]>([])
 
 export const [toast, setToast] = createSignal<string | undefined>(undefined)
 let toastTimer: ReturnType<typeof setTimeout> | undefined
@@ -154,6 +188,8 @@ export const [permissionChoice, setPermissionChoice] = createSignal(0)
 // Tools the user chose "always allow" for, for this session only (RAM, wiped on
 // exit). Never persisted.
 export const [allowedTools, setAllowedTools] = createSignal<string[]>([])
+// Leading command words auto-allowed for bash (e.g. "git"), session-only.
+export const [allowedCommands, setAllowedCommands] = createSignal<string[]>([])
 
 export function isToolAllowed(name: string): boolean {
   return allowedTools().includes(name)
@@ -161,6 +197,14 @@ export function isToolAllowed(name: string): boolean {
 
 export function allowTool(name: string): void {
   setAllowedTools((prev) => (prev.includes(name) ? prev : [...prev, name]))
+}
+
+export function isCommandAllowed(prefix: string): boolean {
+  return prefix.length > 0 && allowedCommands().includes(prefix)
+}
+
+export function allowCommand(prefix: string): void {
+  setAllowedCommands((prev) => (prev.includes(prefix) ? prev : [...prev, prefix]))
 }
 
 export function requestPermission(name: string, args: string, destructive: boolean): Promise<PermissionDecision> {
@@ -195,7 +239,9 @@ export function resetSession(): void {
   setContextPercent(0)
   setPromptTokens(0)
   setAllowedTools([])
+  setAllowedCommands([])
   setPendingImages([])
+  setTodos([])
   setStatus("idle")
   setStatusDetail("")
   setError(undefined)

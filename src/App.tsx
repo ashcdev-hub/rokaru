@@ -199,7 +199,7 @@ export function Startup(props: {
     <box width="100%" height="100%" flexDirection="column" justifyContent="center" alignItems="center">
       <box flexDirection="column" alignItems="center">
         <AsciiLogo />
-        <text fg={THEME.dim}>private · ephemeral harness for oMLX</text>
+        <text fg={THEME.dim}>private local harness for oMLX</text>
         <text fg={THEME.accent}>{`v${VERSION}`}</text>
         <text fg={THEME.text}>{""}</text>
         <Show when={props.phase === "pick"}>

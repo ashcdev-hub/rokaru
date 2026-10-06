@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Private, ephemeral agentic TUI harness for a local oMLX server",
+  "description": "Private local harness for oMLX",
   "scripts": {
     "dev": "bun run src/index.tsx",
     "typecheck": "tsc --noEmit",

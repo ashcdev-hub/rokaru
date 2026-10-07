@@ -18,7 +18,8 @@ import { loadConfig, resolveApiKey } from "./config"
 import { copyToClipboard } from "./clipboard"
 import { COMMANDS, matchCommands, resolveCommandName } from "./commands"
 import { imageDataUrl } from "./image"
-import { undoLast } from "./undo"
+import { applyMention, mentionMatches } from "./fileMentions"
+import { listSnapshots, redoLast, undoLast } from "./undo"
 import { connectServer, disconnectServer } from "./mcp"
 import { registerDynamicTools, unregisterDynamicTools } from "./tools"
 import { detectGit } from "./git"
@@ -126,7 +127,8 @@ export function App() {
         "  /plan | /build   read-only planning mode / full editing mode",
         "  /image <path>   attach an image to your next message",
         "  /compact        summarise the conversation to free context",
-        "  /undo           revert the model's last file edit",
+        "  /undo [list]    revert the model's last file edit (or list the stack)",
+        "  /redo           re-apply the last undone edit",
         "  /find <text>    search the conversation",
         "  /clear          clear the conversation",
         "  /new            start a new conversation",
@@ -237,7 +239,20 @@ export function App() {
         return
       }
       case "undo": {
+        if (arg === "list") {
+          const items = listSnapshots(10)
+          store.addInfoMessage(
+            items.length === 0
+              ? "undo: nothing on the stack."
+              : `undo stack (most recent first):\n${items.map((s) => `  ${s.label}  ${s.path}`).join("\n")}`,
+          )
+          return
+        }
         store.showToast(undoLast() ?? "nothing to undo")
+        return
+      }
+      case "redo": {
+        store.showToast(redoLast() ?? "nothing to redo")
         return
       }
       case "purge-cache": {
@@ -497,6 +512,7 @@ export function App() {
     }
     store.setInputValue(value)
     store.setMenuIndex(0)
+    store.setMentionIndex(0)
   }
 
   // Auto-copy any text selection to the clipboard, with a small toast.
@@ -751,6 +767,26 @@ export function App() {
         key.preventDefault()
         store.clearPastedText()
         return
+      }
+      const mention = mentionMatches(store.inputValue(), workspace)
+      if (mention) {
+        if (key.name === "up") {
+          key.preventDefault()
+          store.setMentionIndex(Math.max(0, store.mentionIndex() - 1))
+          return
+        }
+        if (key.name === "down") {
+          key.preventDefault()
+          store.setMentionIndex(Math.min(mention.files.length - 1, store.mentionIndex() + 1))
+          return
+        }
+        if (key.name === "tab") {
+          key.preventDefault()
+          const chosen = mention.files[Math.min(store.mentionIndex(), mention.files.length - 1)]
+          inputHandle?.setText(applyMention(store.inputValue(), mention, chosen))
+          store.setMentionIndex(0)
+          return
+        }
       }
       const matches = menuMatches()
       if (matches.length > 0) {

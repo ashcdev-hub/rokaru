@@ -78,7 +78,8 @@ Type `/` for a menu (**Tab** completes) or **Ctrl+P** for the palette.
 | `/plan` · `/build` | Toggle read-only planning / full editing. |
 | `/image <path>` | Attach an image (png/jpg/jpeg/gif/webp/bmp) to your next message. |
 | `/compact` | Summarise the conversation to reclaim context. |
-| `/undo` | Revert the model's last file edit. |
+| `/undo [list]` | Revert the model's last file edit, or list the undo stack. |
+| `/redo` | Re-apply the last undone edit. |
 | `/find <text>` | Jump through conversation matches (`n` next, `p` prev). |
 | `/clear` · `/new` | Start over. |
 | `/mcp` | Enable/disable MCP servers (interactive panel). |
@@ -97,8 +98,8 @@ A prompt sent while the model is working is queued and sent when it's free.
 - **Local by default.** The oMLX connection is checked against `127.0.0.1` / `::1`
   / `localhost`; anything else is refused. Proxy env vars are stripped.
 - **Sandboxed tools.** `bash` runs under `sandbox-exec` with all network denied
-  and writes confined to the workspace + temp; `write_file` / `edit_file` are
-  workspace-confined too.
+  and writes confined to the workspace + temp; `write_file`, `edit_file` and
+  `replace_in_files` are workspace-confined too.
 - **Protected paths.** Tools and the sandbox refuse to read `~/.ssh`, `~/.aws`,
   keychains, browser data, the oMLX config and other secret locations.
 - **Secrets.** The API key comes from env or the macOS Keychain, never written to
@@ -116,17 +117,23 @@ oMLX actually left on disk. And the sandbox blocks network and writes, but not
 ### Tools
 
 `read_file`, `list_dir`, `glob`, `grep`, `view_image`, `task`, `todo_write` and
-`question` run automatically; `write_file`, `edit_file` and `bash` ask first.
-Choose **allow once**, **always allow** (for the rest of the session) or **deny**
-with `↑`/`↓` and `enter` (or `y`/`a`/`n`). The prompt previews what will run (a
-`$` block for `bash`, a diff for edits), and tool output is scanned for credential
-shapes and masked before it reaches the model.
+`question` run automatically; `write_file`, `edit_file`, `replace_in_files` and
+`bash` ask first. Choose **allow once**, **always allow** (for the rest of the
+session) or **deny** with `↑`/`↓` and `enter` (or `y`/`a`/`n`). The prompt
+previews what will run (a `$` block for `bash`, a diff for edits), and tool output
+is scanned for credential shapes and masked before it reaches the model.
+
+Type `@` in the prompt to pick a workspace file by name (fuzzy, ignores
+`.git`/`node_modules`); **Tab** inserts the path.
 
 <details>
 <summary>Tooling details</summary>
 
 - For `bash`, "always allow" remembers just the leading command word (e.g. `git`).
 - `read_file` pages large files with `offset`/`limit`.
+- `replace_in_files` rewrites a string across many files at once (literal, or a
+  regex with `regex: true`), scopable by glob, and stages an undo snapshot per
+  file. It refuses when more than 40 files match.
 - `task` delegates a read-only investigation to a subagent with its own context.
 - `question` takes over the prompt with a pick list (`↑↓`/`1-6` to choose,
   `enter` to answer, `esc` dismisses, or type your own answer) instead of asking

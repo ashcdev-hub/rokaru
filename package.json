@@ -1,6 +1,6 @@
 {
   "name": "rokaru",
-  "version": "0.7.7",
+  "version": "0.7.8",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -9,7 +9,7 @@
     "dev": "bun run src/index.tsx",
     "typecheck": "tsc --noEmit",
     "test:security": "bun run scripts/sandbox.test.ts",
-    "test:unit": "bun run scripts/diff.test.ts && bun run scripts/modes.test.ts && bun run scripts/redact.test.ts && bun run scripts/highlight.test.ts && bun run scripts/theme.test.ts && bun run scripts/tools.test.ts && bun run scripts/overflow.test.ts && bun run scripts/find.test.ts && bun run scripts/omlxCache.test.ts && bun run scripts/privacyCheck.test.ts",
+    "test:unit": "bun run scripts/diff.test.ts && bun run scripts/modes.test.ts && bun run scripts/redact.test.ts && bun run scripts/highlight.test.ts && bun run scripts/theme.test.ts && bun run scripts/tools.test.ts && bun run scripts/overflow.test.ts && bun run scripts/find.test.ts && bun run scripts/omlxCache.test.ts && bun run scripts/privacyCheck.test.ts && bun run scripts/undo.test.ts && bun run scripts/replace.test.ts && bun run scripts/fileMentions.test.ts",
     "test:render": "bun run scripts/render-sidebar.test.tsx && bun run scripts/render-logo.test.tsx && bun run scripts/render-chat.test.tsx && bun run scripts/render-startup.test.tsx && bun run scripts/render-selection.test.tsx && bun run scripts/render-features.test.tsx && bun run scripts/render-panels.test.tsx && bun run scripts/render-image.test.tsx && bun run scripts/render-todos.test.tsx && bun run scripts/render-palette.test.tsx && bun run scripts/render-mcp.test.tsx && bun run scripts/render-highlight.test.tsx && bun run scripts/render-themes.test.tsx && bun run scripts/render-visual.test.tsx && bun run scripts/render-markdown.test.tsx && bun run scripts/render-anim.test.tsx && bun run scripts/render-stream.test.tsx && bun run scripts/render-prompt.test.tsx && bun run scripts/render-find.test.tsx",
     "test:agent": "bun run scripts/agent.test.ts",
     "test:image": "bun run scripts/image.test.ts",

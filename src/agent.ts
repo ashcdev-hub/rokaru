@@ -463,7 +463,7 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
         },
       }
       const result = capResult(redactSecrets(await tool.run(parseArgs(call.args), callCtx)))
-      if (tool.name === "write_file" || tool.name === "edit_file") modified = true
+      if (tool.name === "write_file" || tool.name === "edit_file" || tool.name === "replace_in_files") modified = true
       store.updateToolPart(assistantId, call.id, {
         status: "ok",
         result,

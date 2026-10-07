@@ -3,6 +3,19 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.7.8] - 2026-10-07
+
+### Added
+
+- **`replace_in_files` tool.** Rewrites a string across many files at once
+  (literal, or a regex with `regex: true`, scoped by glob), with a diff preview
+  in the permission prompt and an undo snapshot per file. Refuses when more than
+  40 files match.
+- **`/redo` and `/undo list`.** Undo gained a redo stack and can list the staged
+  edits.
+- **`@file` mentions.** Type `@` in the prompt to fuzzy-pick a workspace file;
+  Tab inserts the path.
+
 ## [0.7.7] - 2026-10-07
 
 ### Changed

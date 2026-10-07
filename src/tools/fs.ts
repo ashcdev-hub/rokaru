@@ -13,7 +13,7 @@ function resolvePath(ctx: ToolContext, input: string, base?: string): string {
   return isAbsolute(input) ? input : resolve(root, input)
 }
 
-function assertWritable(ctx: ToolContext, target: string): void {
+export function assertWritable(ctx: ToolContext, target: string): void {
   const workspace = resolve(ctx.workspace)
   const candidate = resolve(target)
   const allowedRoots = [workspace, ...ctx.extraWritePaths.map((p) => resolve(p))]
@@ -114,7 +114,7 @@ export const writeFileTool: ToolDef = {
     const content = String(args?.content ?? "")
     const existed = existsSync(target)
     const previous = existed ? readFileSync(target, "utf8") : ""
-    pushSnapshot({ path: target, previous: existed ? previous : null, label: "write" })
+    pushSnapshot({ path: target, previous: existed ? previous : null, current: content, label: "write" })
     mkdirSync(dirname(target), { recursive: true })
     writeFileSync(target, content)
     try {
@@ -156,7 +156,7 @@ export const editFileTool: ToolDef = {
       throw new Error(`old_string occurs ${count} times; set replace_all or provide more context`)
     }
     const updated = replaceAll ? original.split(oldString).join(newString) : original.replace(oldString, newString)
-    pushSnapshot({ path: target, previous: original, label: "edit" })
+    pushSnapshot({ path: target, previous: original, current: updated, label: "edit" })
     writeFileSync(target, updated)
     try {
       ctx.onDiff?.(diffLines(original, updated))

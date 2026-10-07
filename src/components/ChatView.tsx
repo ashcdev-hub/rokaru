@@ -10,6 +10,7 @@ import { QuestionPanel } from "./QuestionPanel"
 import { Sidebar } from "./Sidebar"
 import { Toast } from "./Toast"
 import { CommandMenu } from "./CommandMenu"
+import { MentionMenu } from "./MentionMenu"
 import { ProgressBar } from "./ProgressBar"
 import type { InputHandle } from "./InputBox"
 
@@ -53,6 +54,7 @@ export function ChatView(props: {
                       )}
                     </Show>
                     <CommandMenu />
+                    <MentionMenu />
                     <InputBox
                       onSubmit={props.onSubmit}
                       focused={!store.permission() && (!store.question() || store.questionTyping())}

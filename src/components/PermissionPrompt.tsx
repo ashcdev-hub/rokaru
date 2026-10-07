@@ -1,9 +1,16 @@
 /** @jsxImportSource @opentui/solid */
-import { For, Show } from "solid-js"
+import { For, Show, createMemo } from "solid-js"
 import { getTheme, sg } from "../theme"
 import { diffLines } from "../diff"
+import { planReplace, REPLACE_MAX_FILES } from "../tools/replace"
 import { CodeLines, DiffView } from "./Code"
-import { PERMISSION_DECISIONS, permissionChoice, type PermissionDecision, type PermissionRequest } from "../store"
+import {
+  PERMISSION_DECISIONS,
+  permissionChoice,
+  workspace,
+  type PermissionDecision,
+  type PermissionRequest,
+} from "../store"
 
 const LABELS: Record<PermissionDecision, string> = {
   once: "allow once",
@@ -68,6 +75,36 @@ function Summary(props: { name: string; args: any; raw: string }) {
   return <text fg={getTheme().text}>{verb ? `${verb} ${detail}` : props.raw.replace(/\s+/g, " ").slice(0, 160)}</text>
 }
 
+function ReplacePreview(props: { args: any }) {
+  const plan = createMemo(() => {
+    try {
+      return planReplace(props.args, workspace())
+    } catch {
+      return undefined
+    }
+  })
+  const files = () => plan()?.files ?? []
+  return (
+    <>
+      <text fg={getTheme().blue}>
+        {`Replace ${String(props.args.old_string ?? "").slice(0, 50)} → ${String(props.args.new_string ?? "").slice(0, 50)}`}
+      </text>
+      <text fg={getTheme().dim}>
+        {`${files().length} file(s) · ${plan()?.total ?? 0} occurrence(s)${
+          plan()?.tooMany ? ` · over the ${REPLACE_MAX_FILES}-file limit (will be refused)` : ""
+        }`}
+      </text>
+      <Show when={files().length > 0}>
+        <text fg={getTheme().dim}>{files()[0].path}</text>
+        <DiffView lines={diffLines(files()[0].before, files()[0].after)} />
+      </Show>
+      <Show when={files().length > 1}>
+        <text fg={getTheme().dim}>{`… and ${files().length - 1} more file(s)`}</text>
+      </Show>
+    </>
+  )
+}
+
 export function PermissionBody(props: { request: PermissionRequest }) {
   const name = () => props.request.name
   const args = () => parseArgs(props.request.args)
@@ -101,7 +138,14 @@ export function PermissionBody(props: { request: PermissionRequest }) {
               fallback={
                 <Show
                   when={name() === "write_file"}
-                  fallback={<Summary name={name()} args={args()} raw={props.request.args} />}
+                  fallback={
+                    <Show
+                      when={name() === "replace_in_files"}
+                      fallback={<Summary name={name()} args={args()} raw={props.request.args} />}
+                    >
+                      <ReplacePreview args={args()} />
+                    </Show>
+                  }
                 >
                   <WritePreview path={String(args().path ?? "")} content={String(args().content ?? "")} />
                 </Show>

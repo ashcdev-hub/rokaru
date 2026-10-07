@@ -2,7 +2,7 @@
   <img src="assets/rokaru.png" alt="rokaru" width="420">
 </p>
 
-<h3 align="center">A private, local-first coding agent for <a href="https://github.com/jundot/omlx">oMLX</a> on Apple Silicon.</h3>
+<h3 align="center">A private, local AI coding agent for <a href="https://github.com/jundot/omlx">oMLX</a> on Apple Silicon.</h3>
 
 <p align="center">
   <img alt="platform" src="https://img.shields.io/badge/platform-macOS-black?style=flat-square">

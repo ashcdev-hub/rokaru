@@ -4,7 +4,7 @@ import { ThemePanel } from "../src/components/ThemePanel"
 import * as store from "../src/store"
 import { getTheme, setCurrentTheme } from "../src/theme"
 
-setCurrentTheme("slate")
+setCurrentTheme("onyx")
 
 // List mode
 store.setThemeCustom(false)
@@ -15,8 +15,8 @@ const listFrame = list.captureCharFrame()
 console.log(listFrame)
 const listOk =
   listFrame.includes("themes") &&
-  listFrame.includes("slate") &&
-  listFrame.includes("nord") &&
+  listFrame.includes("onyx") &&
+  listFrame.includes("glacier") &&
   listFrame.includes("new theme") &&
   listFrame.includes("✓")
 list.renderer.destroy()
@@ -40,16 +40,16 @@ function Probe() {
     </text>
   )
 }
-setCurrentTheme("slate")
+setCurrentTheme("onyx")
 const probe = await testRender(() => <Probe />, { width: 20, height: 2 })
 await probe.flush()
-const slateFg = (probe.captureSpans().lines?.[0]?.spans?.[0] as any)?.fg?.buffer
-setCurrentTheme("dracula")
+const onyxFg = (probe.captureSpans().lines?.[0]?.spans?.[0] as any)?.fg?.buffer
+setCurrentTheme("nocturne")
 await probe.flush()
-const draculaFg = (probe.captureSpans().lines?.[0]?.spans?.[0] as any)?.fg?.buffer
+const nocturneFg = (probe.captureSpans().lines?.[0]?.spans?.[0] as any)?.fg?.buffer
 probe.renderer.destroy()
-const reactive = slateFg && draculaFg && slateFg.join(",") !== draculaFg.join(",")
-console.log(`reactivity: slate=${slateFg?.join(",")} dracula=${draculaFg?.join(",")} -> ${reactive}`)
+const reactive = onyxFg && nocturneFg && onyxFg.join(",") !== nocturneFg.join(",")
+console.log(`reactivity: onyx=${onyxFg?.join(",")} nocturne=${nocturneFg?.join(",")} -> ${reactive}`)
 
 console.log(
   listOk && editOk && reactive ? "PASS  theme panel renders (list + editor + reactive)" : `FAIL  list=${listOk} edit=${editOk} reactive=${reactive}`,

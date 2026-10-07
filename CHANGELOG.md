@@ -3,6 +3,18 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.7.0] - 2026-10-07
+
+### Changed
+
+- **Themes paint the whole terminal.** Every palette has a `background` colour
+  now, and the app fills the full terminal with it — chat, overlays and the
+  startup screen — so dark themes no longer sit on plain terminal black. The
+  custom-theme editor exposes it as the `terminal background` role.
+- **Original theme names.** The built-ins are renamed: `slate`→`onyx`
+  (still the default), `github`→`graphite`, `nord`→`glacier`,
+  `dracula`→`nocturne`, `solarized`→`lagoon`, `rosepine`→`plum`.
+
 ## [0.6.3] - 2026-10-07
 
 ### Fixed

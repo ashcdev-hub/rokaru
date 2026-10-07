@@ -737,10 +737,11 @@ export function App() {
   }
 
   return (
-    <Show
-      when={phase() === "ready"}
-      fallback={<Startup phase={phase()} message={loadError()} models={store.models()} onSelect={chooseModel} />}
-    >
+    <box width="100%" height="100%" backgroundColor={getTheme().background}>
+      <Show
+        when={phase() === "ready"}
+        fallback={<Startup phase={phase()} message={loadError()} models={store.models()} onSelect={chooseModel} />}
+      >
       <Show
         when={store.switchingModel()}
         fallback={
@@ -779,7 +780,8 @@ export function App() {
       >
         <SwitchModel baseURL={config.baseURL} apiKey={resolveApiKey()} onSelect={switchTo} />
       </Show>
-    </Show>
+      </Show>
+    </box>
   )
 }
 

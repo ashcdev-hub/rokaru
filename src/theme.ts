@@ -14,6 +14,7 @@ export interface Theme {
   build: string
   plan: string
   meter: string
+  background: string
   panelBg: string
   panelBorder: string
 }
@@ -21,7 +22,7 @@ export interface Theme {
 // Built-in palettes. Custom themes get added to `THEMES` at runtime via
 // addCustomTheme (session-only, like the rest of rokaru).
 const BUILTIN_THEMES: Record<string, Theme> = {
-  slate: {
+  onyx: {
     text: "#ffffff",
     body: "#c9d1d9",
     dim: "#8b93a1",
@@ -35,10 +36,11 @@ const BUILTIN_THEMES: Record<string, Theme> = {
     build: "#eab308",
     plan: "#7fd4ff",
     meter: "#c792ea",
+    background: "#0a0d12",
     panelBg: "#0f1319",
     panelBorder: "#2b3543",
   },
-  github: {
+  graphite: {
     text: "#e6edf3",
     body: "#d0d7de",
     dim: "#8b949e",
@@ -52,10 +54,11 @@ const BUILTIN_THEMES: Record<string, Theme> = {
     build: "#e3b341",
     plan: "#58a6ff",
     meter: "#bc8cff",
+    background: "#080b0f",
     panelBg: "#0d1117",
     panelBorder: "#21262d",
   },
-  nord: {
+  glacier: {
     text: "#eceff4",
     body: "#d8dee9",
     dim: "#7b88a1",
@@ -69,10 +72,11 @@ const BUILTIN_THEMES: Record<string, Theme> = {
     build: "#d08770",
     plan: "#81a1c1",
     meter: "#b48ead",
+    background: "#242933",
     panelBg: "#2e3440",
     panelBorder: "#3b4252",
   },
-  dracula: {
+  nocturne: {
     text: "#f8f8f2",
     body: "#f8f8f2",
     dim: "#8b94a7",
@@ -86,10 +90,11 @@ const BUILTIN_THEMES: Record<string, Theme> = {
     build: "#50fa7b",
     plan: "#8be9fd",
     meter: "#bd93f9",
+    background: "#1e2029",
     panelBg: "#282a36",
     panelBorder: "#44475a",
   },
-  solarized: {
+  lagoon: {
     text: "#fdf6e3",
     body: "#93a1a1",
     dim: "#657b83",
@@ -103,10 +108,11 @@ const BUILTIN_THEMES: Record<string, Theme> = {
     build: "#268bd2",
     plan: "#268bd2",
     meter: "#d33682",
+    background: "#001e26",
     panelBg: "#002b36",
     panelBorder: "#073642",
   },
-  rosepine: {
+  plum: {
     text: "#e0def4",
     body: "#d9c9a0",
     dim: "#908caa",
@@ -120,6 +126,7 @@ const BUILTIN_THEMES: Record<string, Theme> = {
     build: "#a6e3a1",
     plan: "#9ccfd8",
     meter: "#cba8f7",
+    background: "#12111c",
     panelBg: "#191724",
     panelBorder: "#312e41",
   },
@@ -130,7 +137,7 @@ export const THEMES: Record<string, Theme> = { ...BUILTIN_THEMES }
 export const BUILTIN_THEME_NAMES = Object.keys(BUILTIN_THEMES)
 
 const [customNames, setCustomNames] = createSignal<string[]>([])
-const [themeName, setThemeName] = createSignal("slate")
+const [themeName, setThemeName] = createSignal("onyx")
 const [themeVersion, setThemeVersion] = createSignal(0)
 
 // Reactive list of every theme name (built-in + custom), for the /themes panel.
@@ -139,7 +146,7 @@ export function themeNames(): string[] {
 }
 
 export function getTheme(): Theme {
-  return THEMES[themeName()] ?? THEMES.slate
+  return THEMES[themeName()] ?? THEMES.onyx
 }
 
 export function activeThemeName(): string {
@@ -177,6 +184,7 @@ export { themeVersion }
 
 // Roles exposed in the custom-theme editor, and the colours it cycles through.
 export const THEME_ROLES: (keyof Theme)[] = [
+  "background",
   "panelBg",
   "text",
   "body",
@@ -225,7 +233,8 @@ export const THEME_COLOURS: string[] = [
 ]
 
 export const THEME_ROLE_LABELS: Record<string, string> = {
-  panelBg: "background",
+  background: "terminal background",
+  panelBg: "panel background",
   text: "text",
   body: "body text",
   dim: "dim",

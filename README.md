@@ -160,12 +160,12 @@ a SearxNG instance).
 
 ## Themes
 
-`/themes` (or `/theme`) opens a picker for the built-in palettes — **slate,
-github, nord, dracula, solarized, rosepine**. `↑`/`↓` to move, `enter` to apply
-(colours update live), `esc` to close. Pick **new theme** to build a custom
-palette: `↑`/`↓` choose a role, `←`/`→` cycle its colour, `enter` saves it as
-`custom`/`custom-2` and applies it. Custom themes are session-only (wiped on
-exit, like everything else).
+`/themes` (or `/theme`) opens a picker for the built-in palettes — **onyx,
+graphite, glacier, nocturne, lagoon, plum**. `↑`/`↓` to move, `enter` to apply
+(colours update live, including the whole terminal background), `esc` to close.
+Pick **new theme** to build a custom palette: `↑`/`↓` choose a role, `←`/`→`
+cycle its colour, `enter` saves it as `custom`/`custom-2` and applies it.
+Custom themes are session-only (wiped on exit, like everything else).
 
 ## Config
 

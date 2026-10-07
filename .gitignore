@@ -1,3 +1,6 @@
 node_modules/
 *.log
 .DS_Store
+
+# Local-only agent instructions — never commit or push.
+AGENTS.md

@@ -140,8 +140,7 @@ count) shows there and in the sidebar **MCP** panel. Read-only tools (MCP
 `readOnlyHint`) run automatically; everything else asks first. Toggling is
 session-only, and servers shut down when rokaru exits.
 
-<details>
-<summary>Example MCP config</summary>
+Declare servers under `mcp.servers` in the config:
 
 ```json
 "mcp": {
@@ -153,8 +152,6 @@ session-only, and servers shut down when rokaru exits.
   }
 }
 ```
-
-</details>
 
 ### Web access (optional, read-only)
 

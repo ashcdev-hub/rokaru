@@ -3,6 +3,13 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.7.6] - 2026-10-07
+
+### Fixed
+
+- README: MCP server config example shown inline again instead of hidden in a
+  collapsed section.
+
 ## [0.7.5] - 2026-10-07
 
 ### Changed

@@ -96,6 +96,30 @@ store.answerQuestion({ kind: "option", index: 1, label: "Blue" })
 const resolvedAnswer = await pendingAnswer
 qChat.renderer.destroy()
 
+const typePending = store.requestQuestion("call_custom", "Pick one?", [{ label: "X" }, { label: "Y" }])
+store.selectQuestionRow(2)
+const typingEntered = store.questionTyping() && !!store.question()
+const typeChat = await testRender(
+  () => <ChatView onSubmit={() => {}} inputHeight={5} onContentChange={(v) => store.setInputValue(v)} />,
+  { width: 100, height: 30 },
+)
+await typeChat.flush()
+const typeFrame = typeChat.captureCharFrame()
+await (typeChat as any).mockInput.typeText("my answer")
+await typeChat.flush()
+const typedLanded = store.inputValue() === "my answer"
+store.answerQuestion({ kind: "custom", text: store.inputValue() })
+const resolvedCustom = await typePending
+typeChat.renderer.destroy()
+
+store.setInputPrefill("/image ")
+const preChat = await testRender(() => <ChatView onSubmit={() => {}} inputHeight={5} />, { width: 100, height: 30 })
+await preChat.flush()
+const preFrame = preChat.captureCharFrame()
+const prefillShown = preFrame.includes("/image ")
+const prefillConsumed = store.inputPrefill() === ""
+preChat.renderer.destroy()
+
 const paletteActions: PaletteAction[] = [
   { label: "/model", description: "switch model" },
   { label: "/plan", description: "read-only planning mode" },
@@ -149,6 +173,10 @@ const checks: [string, boolean][] = [
   ["question takes over the prompt", qFrame.includes("question") && qFrame.includes("Pick a colour")],
   ["question options listed", qFrame.includes("1. Red") && qFrame.includes("2. Blue") && qFrame.includes("type your own answer")],
   ["question resolves the pick", resolvedAnswer.kind === "option" && resolvedAnswer.label === "Blue"],
+  ["custom row enters typing without touching dead input", typingEntered && !typeFrame.includes("Pick one?")],
+  ["typed custom answer lands in the box", typedLanded],
+  ["custom answer resolves", resolvedCustom.kind === "custom" && resolvedCustom.text === "my answer"],
+  ["palette prefill lands on remount", prefillShown && prefillConsumed],
   ["palette filters while typing", JSON.stringify(filteredLabels) === JSON.stringify(["/model", "/plan", "switch model"])],
   ["palette shows query + match", palFrame.includes("> mod") && palFrame.includes("/model") && !palFrame.includes("quit")],
   ["palette empty state", emptyPalFrame.includes("(no matches)")],

@@ -275,8 +275,7 @@ export function App() {
         if (command.name === "model") {
           store.setSwitchingModel(true)
         } else if (command.name === "image" || command.name === "find") {
-          inputHandle?.setText(`/${command.name} `)
-          inputHandle?.focus()
+          store.setInputPrefill(`/${command.name} `)
         } else {
           runCommand(`/${command.name}`)
         }
@@ -404,16 +403,7 @@ export function App() {
   }
 
   const pickQuestionRow = (row: number) => {
-    const pending = store.question()
-    if (!pending) return
-    if (row < pending.options.length) {
-      const label = pending.options[row]?.label ?? ""
-      store.answerQuestion({ kind: "option", index: row, label })
-    } else if (row === pending.options.length) {
-      inputHandle?.clear()
-      store.setQuestionTyping(true)
-      inputHandle?.focus()
-    }
+    store.selectQuestionRow(row)
   }
 
   const submit = (text: string) => {

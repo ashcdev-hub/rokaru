@@ -3,7 +3,7 @@ import { createSignal, onMount, Show } from "solid-js"
 import { defaultTextareaKeyBindings, type KeyBinding, type TextareaRenderable } from "@opentui/core"
 import { usePaste, useTerminalDimensions } from "@opentui/solid"
 import { getTheme } from "../theme"
-import { pastedLineCount, pastedText, questionTyping, setPastedText, status } from "../store"
+import { consumeInputPrefill, pastedLineCount, pastedText, questionTyping, setPastedText, status } from "../store"
 import { PromptPanel } from "./PromptPanel"
 
 const bindings: KeyBinding[] = [
@@ -92,8 +92,8 @@ export function InputBox(props: {
     props.onContentChange?.(value)
   }
 
-  onMount(() =>
-    props.onReady?.({
+  onMount(() => {
+    const handle: InputHandle = {
       setText: (text: string) => {
         ref?.setText(text)
         track(text)
@@ -104,8 +104,14 @@ export function InputBox(props: {
         track("")
       },
       focus: () => ref?.focus(),
-    }),
-  )
+    }
+    props.onReady?.(handle)
+    const prefill = consumeInputPrefill()
+    if (prefill.length > 0) {
+      ref?.setText(prefill)
+      track(prefill)
+    }
+  })
 
   return (
     <PromptPanel height={rows() + 3 + (pastedLineCount() > 0 ? 1 : 0)}>

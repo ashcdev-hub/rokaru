@@ -3,6 +3,16 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.6.3] - 2026-10-07
+
+### Fixed
+
+- **`question` custom answers.** Picking "type your own answer" did nothing: the
+  code touched the previous (already destroyed) input box, which threw and never
+  switched into typing mode. The prompt now flips state first and lets the fresh
+  input take focus. Palette `image`/`find` prefill had the same latent fault and
+  now lands via a deferred prefill instead.
+
 ## [0.6.2] - 2026-10-07
 
 ### Added

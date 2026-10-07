@@ -337,6 +337,25 @@ export function answerQuestion(answer: QuestionAnswer): void {
   current.resolve(answer)
 }
 
+export function selectQuestionRow(row: number): void {
+  const pending = question()
+  if (!pending) return
+  if (row < pending.options.length) {
+    const label = pending.options[row]?.label ?? ""
+    answerQuestion({ kind: "option", index: row, label })
+  } else if (row === pending.options.length) {
+    setQuestionTyping(true)
+  }
+}
+
+export const [inputPrefill, setInputPrefill] = createSignal("")
+
+export function consumeInputPrefill(): string {
+  const text = inputPrefill()
+  if (text.length > 0) setInputPrefill("")
+  return text
+}
+
 export function resetSession(): void {
   for (const message of messages()) {
     for (const part of message.parts) {
@@ -349,6 +368,7 @@ export function resetSession(): void {
   setPermission(undefined)
   setQuestion(undefined)
   setQuestionTyping(false)
+  setInputPrefill("")
   setPalette(false)
   setPaletteQuery("")
   setMetrics(EMPTY_METRICS)

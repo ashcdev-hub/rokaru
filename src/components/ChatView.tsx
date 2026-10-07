@@ -43,6 +43,15 @@ export function ChatView(props: {
                         </text>
                       </box>
                     </Show>
+                    <Show when={store.findNav()}>
+                      {(nav) => (
+                        <box flexDirection="row" flexShrink={0} paddingLeft={1}>
+                          <text fg={getTheme().accent}>
+                            {`🔎 ${nav().at + 1}/${nav().hits.length} “${nav().query}” · n next · p prev · esc done`}
+                          </text>
+                        </box>
+                      )}
+                    </Show>
                     <CommandMenu />
                     <InputBox
                       onSubmit={props.onSubmit}

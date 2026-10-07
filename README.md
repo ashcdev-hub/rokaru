@@ -39,7 +39,8 @@ filter, `enter` runs the action):
   `view_image`.
 - `/compact` — summarise the conversation to reclaim context.
 - `/undo` — revert the model's last file edit (in-memory; also wiped on exit).
-- `/find <text>` — search the conversation.
+- `/find <text>` — jump through conversation matches (`n` next, `p` prev,
+  `esc` back to bottom).
 - `/clear`, `/new` — start over.
 - `/help` — list commands.
 - `/mcp` — enable/disable MCP servers (interactive panel).

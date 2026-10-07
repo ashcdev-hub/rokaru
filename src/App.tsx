@@ -23,6 +23,7 @@ import { ChatView } from "./components/ChatView"
 import { SwitchModel } from "./components/SwitchModel"
 import { CommandPalette, filterPaletteActions, type PaletteAction } from "./components/CommandPalette"
 import { McpPanel } from "./components/McpPanel"
+import { scrollTranscriptToBottom, scrollTranscriptToMessage } from "./components/MessageList"
 import { ThemePanel } from "./components/ThemePanel"
 import { StartupBackground } from "./components/StartupBackground"
 import type { InputHandle } from "./components/InputBox"
@@ -133,32 +134,21 @@ export function App() {
   }
 
   const findInTranscript = (query: string) => {
-    const needle = query.toLowerCase()
-    const hits: string[] = []
-    store.messages().forEach((message, index) => {
-      for (const part of message.parts) {
-        const text =
-          part.kind === "text" || part.kind === "reasoning"
-            ? part.text
-            : part.kind === "tool"
-              ? `${part.name} ${part.args} ${part.result}`
-              : ""
-        const lower = text.toLowerCase()
-        let from = 0
-        let found = 0
-        while (found < 3) {
-          const at = lower.indexOf(needle, from)
-          if (at === -1) break
-          const snippet = text.slice(Math.max(0, at - 30), at + needle.length + 50).replace(/\s+/g, " ")
-          hits.push(`${message.role} #${index + 1}: …${snippet}…`)
-          from = at + needle.length
-          found += 1
-        }
-      }
-    })
-    store.addInfoMessage(
-      hits.length > 0 ? `matches for “${query}”:\n${hits.slice(0, 12).join("\n")}` : `no matches for “${query}”`,
-    )
+    const hits = store.findMessageHits(query)
+    if (hits.length === 0) {
+      store.addInfoMessage(`no matches for “${query}”`)
+      return
+    }
+    store.setFindNav({ query, hits, at: 0 })
+    scrollTranscriptToMessage(hits[0] ?? 0)
+  }
+
+  const stepFindNav = (delta: number) => {
+    const nav = store.findNav()
+    if (!nav || nav.hits.length === 0) return
+    const at = (nav.at + delta + nav.hits.length) % nav.hits.length
+    store.setFindNav({ ...nav, at })
+    scrollTranscriptToMessage(nav.hits[at] ?? 0)
   }
 
   const newConversation = (message: string) => {
@@ -282,14 +272,6 @@ export function App() {
       },
     })),
     {
-      label: "switch model",
-      description: "open the model picker",
-      run: () => {
-        store.setPalette(false)
-        store.setSwitchingModel(true)
-      },
-    },
-    {
       label: store.mode() === "plan" ? "switch to build mode" : "switch to plan mode",
       description: "toggle read-only planning",
       run: () => {
@@ -387,6 +369,8 @@ export function App() {
   const send = (text: string) => {
     const attachments = store.pendingImages()
     store.clearPendingImages()
+    store.clearFindNav()
+    scrollTranscriptToBottom()
     sentHistory.push(text)
     historyIndex = sentHistory.length
     navigating = false
@@ -400,10 +384,6 @@ export function App() {
         queueMicrotask(() => submit(next))
       }
     })
-  }
-
-  const pickQuestionRow = (row: number) => {
-    store.selectQuestionRow(row)
   }
 
   const submit = (text: string) => {
@@ -497,7 +477,7 @@ export function App() {
         : ""
       const buffer = store.streamBuffer()
       const tail = buffer && last && buffer.messageId === last.id && buffer.kind === "text" ? buffer.text : ""
-      const text = `${committed}${tail}`.trim()
+      const text = [committed, tail].filter((s) => s.length > 0).join("\n").trim()
       if (text.length > 0) {
         copyToClipboard(text)
         store.showToast("copied last response")
@@ -658,7 +638,7 @@ export function App() {
         store.moveQuestionIndex(1)
       } else if (key.name === "return" || key.name === "enter") {
         key.preventDefault()
-        pickQuestionRow(store.questionIndex())
+        store.selectQuestionRow(store.questionIndex())
       } else if (key.name === "escape") {
         key.preventDefault()
         store.answerQuestion({ kind: "dismissed" })
@@ -666,8 +646,26 @@ export function App() {
         const row = Number(key.name) - 1
         if (row < store.questionRowCount()) {
           key.preventDefault()
-          pickQuestionRow(row)
+          store.selectQuestionRow(row)
         }
+      }
+      return
+    }
+
+    const nav = store.findNav()
+    if (nav && !key.ctrl && !key.meta) {
+      if (key.name === "escape") {
+        key.preventDefault()
+        store.clearFindNav()
+        scrollTranscriptToBottom()
+      } else if (key.name === "n") {
+        key.preventDefault()
+        stepFindNav(1)
+      } else if (key.name === "p") {
+        key.preventDefault()
+        stepFindNav(-1)
+      } else {
+        store.clearFindNav()
       }
       return
     }

@@ -132,6 +132,40 @@ export function clearPendingImages(): void {
   setPendingImages([])
 }
 
+export interface FindNav {
+  query: string
+  hits: number[]
+  at: number
+}
+
+export const [findNav, setFindNav] = createSignal<FindNav | undefined>(undefined)
+
+export function clearFindNav(): void {
+  setFindNav(undefined)
+}
+
+export function messageSearchText(message: UIMessage): string {
+  return message.parts
+    .map((part) =>
+      part.kind === "text" || part.kind === "reasoning"
+        ? part.text
+        : part.kind === "tool"
+          ? `${part.name} ${part.args} ${part.result}`
+          : "",
+    )
+    .join("\n")
+}
+
+export function findMessageHits(query: string): number[] {
+  const needle = query.toLowerCase()
+  if (needle.length === 0) return []
+  const hits: number[] = []
+  messages().forEach((message, index) => {
+    if (messageSearchText(message).toLowerCase().includes(needle)) hits.push(index)
+  })
+  return hits
+}
+
 // Large pastes are collapsed to a "Pasted N lines" attachment row instead of
 // going into the textarea, so the prompt box stays compact. The full text is
 // folded into the message on submit.
@@ -369,6 +403,7 @@ export function resetSession(): void {
   setQuestion(undefined)
   setQuestionTyping(false)
   setInputPrefill("")
+  setFindNav(undefined)
   setPalette(false)
   setPaletteQuery("")
   setMetrics(EMPTY_METRICS)

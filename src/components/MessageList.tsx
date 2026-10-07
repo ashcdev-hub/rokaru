@@ -1,6 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 import { For, Index, Show, createSignal, onCleanup, onMount } from "solid-js"
 import { useTerminalDimensions } from "@opentui/solid"
+import type { ScrollBoxRenderable } from "@opentui/core"
 import { getTheme, sg } from "../theme"
 import { Markdown } from "./Markdown"
 import { DiffView } from "./Code"
@@ -19,6 +20,39 @@ import {
 import type { Part, StreamKind, UIMessage } from "../store"
 
 const COLLAPSE_LINES = 10
+
+let transcriptBox: ScrollBoxRenderable | undefined
+
+export function scrollTranscriptToMessage(index: number): number {
+  const box = transcriptBox
+  if (!box) return -1
+  // The <Show> empty-state leaves a zero-size slot node behind, so skip
+  // non-rendered nodes instead of assuming a 1:1 child mapping.
+  const rows = box.getChildren().filter((child) => {
+    try {
+      return child.getLayoutNode().getComputedHeight() > 0
+    } catch {
+      return false
+    }
+  })
+  if (rows.length === 0) return -1
+  const child = rows[Math.max(0, Math.min(index, rows.length - 1))]
+  if (!child) return -1
+  let top = 0
+  try {
+    top = child.getLayoutNode().getComputedTop()
+  } catch {
+    return -1
+  }
+  box.scrollTop = Math.max(0, top - 2)
+  return box.scrollTop
+}
+
+export function scrollTranscriptToBottom(): void {
+  const box = transcriptBox
+  if (!box) return
+  box.scrollTop = Math.max(0, box.scrollHeight)
+}
 
 function collapse(text: string, max: number, expanded: boolean): string {
   const lines = text.split("\n")
@@ -296,7 +330,14 @@ export function MessageList() {
   }
 
   return (
-    <scrollbox flexGrow={1} stickyScroll={true} stickyStart="bottom" paddingLeft={1} paddingRight={1}>
+    <scrollbox
+      ref={(el: ScrollBoxRenderable) => (transcriptBox = el)}
+      flexGrow={1}
+      stickyScroll={true}
+      stickyStart="bottom"
+      paddingLeft={1}
+      paddingRight={1}
+    >
       <Show when={messages().length === 0}>
         <EmptyState />
       </Show>

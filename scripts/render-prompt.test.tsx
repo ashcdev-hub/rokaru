@@ -123,7 +123,6 @@ preChat.renderer.destroy()
 const paletteActions: PaletteAction[] = [
   { label: "/model", description: "switch model" },
   { label: "/plan", description: "read-only planning mode" },
-  { label: "switch model", description: "open the model picker" },
   { label: "quit", description: "exit rokaru" },
 ]
 const filteredLabels = filterPaletteActions(paletteActions, "mod").map((a) => a.label)
@@ -177,7 +176,7 @@ const checks: [string, boolean][] = [
   ["typed custom answer lands in the box", typedLanded],
   ["custom answer resolves", resolvedCustom.kind === "custom" && resolvedCustom.text === "my answer"],
   ["palette prefill lands on remount", prefillShown && prefillConsumed],
-  ["palette filters while typing", JSON.stringify(filteredLabels) === JSON.stringify(["/model", "/plan", "switch model"])],
+  ["palette filters while typing", JSON.stringify(filteredLabels) === JSON.stringify(["/model", "/plan"])],
   ["palette shows query + match", palFrame.includes("> mod") && palFrame.includes("/model") && !palFrame.includes("quit")],
   ["palette empty state", emptyPalFrame.includes("(no matches)")],
   ["sidebar shows name + version once", (sideFrame.match(/rokaru/g) ?? []).length === 1 && /v\d+\.\d+\.\d+/.test(sideFrame)],

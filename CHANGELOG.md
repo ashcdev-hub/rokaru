@@ -3,6 +3,20 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.7.1] - 2026-10-07
+
+### Changed
+
+- **`/find` jumps to hits.** Matches step through the transcript in place
+  (`n` next, `p` prev, `esc` back to bottom) instead of printing as text.
+  Typing or sending a message exits navigation and restores follow mode.
+- **Palette tidy.** The duplicate `switch model` row is gone — `/model` opens
+  the picker directly.
+
+### Fixed
+
+- `ctrl+y` separates committed text and the live tail with a newline.
+
 ## [0.7.0] - 2026-10-07
 
 ### Changed

@@ -3,6 +3,16 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.7.3] - 2026-10-07
+
+### Added
+
+- **`/privacy-check` command.** Sends one canary request through oMLX, then
+  scans `~/.omlx` (excluding `models/`) for the token and reports `PASS`/`FAIL`
+  alongside the on-disk state (`hot_cache_only`, `usage_history`,
+  `usage.sqlite3`, `stats.json`, `response-state`). Confirms no readable trace
+  of a session is persisted.
+
 ## [0.7.2] - 2026-10-07
 
 ### Added

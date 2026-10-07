@@ -46,6 +46,8 @@ filter, `enter` runs the action):
 - `/mcp` — enable/disable MCP servers (interactive panel).
 - `/purge-cache` — delete oMLX session KV-cache (only while the oMLX server is
   stopped; models, settings, logs and usage stats are never touched).
+- `/privacy-check` — send one canary request through oMLX, then scan `~/.omlx`
+  for the token and report `PASS`/`FAIL` plus what oMLX left on disk.
 - `/themes` — switch colour theme (alias `/theme`). See below.
 - `/exit` — quit (the alias `/quit` resolves to it).
 
@@ -70,8 +72,9 @@ A prompt sent while the model is working is queued and sent when it's free.
   are disabled.
 
 Caveats: your prompts still pass through oMLX, which keeps its own KV cache and
-usage DB — rokaru doesn't touch those. And the sandbox blocks network and writes,
-but not **reads**; don't point it at a box full of secrets.
+usage DB — rokaru doesn't touch those. Run `/privacy-check` to confirm what oMLX
+actually left on disk. And the sandbox blocks network and writes, but not
+**reads**; don't point it at a box full of secrets.
 
 ## Tools
 

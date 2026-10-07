@@ -5,6 +5,14 @@ import { runTurn, compactHistory, resetHistory, type TurnOptions } from "./agent
 import { clearProxyEnv } from "./guard"
 import { installLifecycle, secureExit } from "./lifecycle"
 import { isOmlxServerRunning, purgeOmlxSessionCache } from "./omlxCache"
+import {
+  collectDiskState,
+  formatPrivacyReport,
+  generateCanary,
+  omlxRoot,
+  scanForText,
+  sendCanaryProbe,
+} from "./privacyCheck"
 import { listModels, type ModelInfo } from "./omlx"
 import { loadConfig, resolveApiKey } from "./config"
 import { copyToClipboard } from "./clipboard"
@@ -125,6 +133,7 @@ export function App() {
         "  /help           show this list",
         "  /mcp            list connected MCP servers",
         "  /purge-cache    delete oMLX session KV-cache (server must be stopped)",
+        "  /privacy-check  send a canary request and scan oMLX for leaked session data",
         "  /themes         switch colour theme",
         "  /exit           quit (/quit works too)",
         "",
@@ -157,6 +166,32 @@ export function App() {
     store.resetSession()
     resetHistory()
     store.showToast(message)
+  }
+
+  const runPrivacyCheck = async () => {
+    const model = store.model()
+    if (!model) {
+      store.showToast("select a model first", "warn")
+      return
+    }
+    const canary = generateCanary()
+    store.addInfoMessage(`privacy-check: sending a canary request to ${model}…`)
+    const probe = new AbortController()
+    const timeout = setTimeout(() => probe.abort(), 120_000)
+    try {
+      await sendCanaryProbe({ baseURL: config.baseURL, apiKey: resolveApiKey() }, model, canary, probe.signal)
+    } catch (err) {
+      store.addInfoMessage(
+        `privacy-check: could not complete the probe request — ${(err as Error).message}\nNo oMLX traffic to test, so no scan was run.`,
+      )
+      return
+    } finally {
+      clearTimeout(timeout)
+    }
+    const root = omlxRoot()
+    const scan = scanForText(root, canary, { excludeDirs: ["models"] })
+    const state = collectDiskState(root)
+    store.addInfoMessage(formatPrivacyReport(canary, scan, state).message)
   }
 
   const runCommand = (raw: string) => {
@@ -223,6 +258,14 @@ export function App() {
             ? "purge-cache: nothing to remove."
             : `purge-cache: removed ${result.removed.length} directorie(s), freed ${mb} MB of session KV-cache.\noMLX rebuilds it as needed; models, settings, logs and usage stats were untouched.`,
         )
+        return
+      }
+      case "privacy-check": {
+        if (busy()) {
+          store.showToast("busy — try /privacy-check when idle", "warn")
+          return
+        }
+        void runPrivacyCheck()
         return
       }
       case "exit":

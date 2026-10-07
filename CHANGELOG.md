@@ -3,6 +3,14 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.7.13] - 2026-10-07
+
+### Changed
+
+- **Smoother streaming.** Tool-call arguments are now coalesced onto the same
+  update cadence as streamed text, instead of patching the transcript on every
+  argument token.
+
 ## [0.7.12] - 2026-10-07
 
 ### Changed

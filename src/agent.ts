@@ -145,6 +145,9 @@ async function streamOnce(
   let finishReason = "stop"
   let lastFlush = performance.now()
   const toolCallCount = { n: 0 }
+  // Length of tool-arg text already pushed to the store, per call index, so we
+  // only patch the transcript on the flush cadence rather than per token.
+  const flushedArgs = new Map<number, number>()
 
   const flush = (force: boolean) => {
     const now = performance.now()
@@ -157,6 +160,14 @@ async function streamOnce(
     if (reasoning.length > flushedReasoning) {
       store.appendStream(assistantId, "reasoning", reasoning.slice(flushedReasoning))
       flushedReasoning = reasoning.length
+    }
+    for (const [index, entry] of toolCalls) {
+      if (!entry.name) continue
+      const pushed = flushedArgs.get(index) ?? 0
+      if (entry.args.length !== pushed) {
+        store.updateToolPart(assistantId, entry.id, { args: entry.args })
+        flushedArgs.set(index, entry.args.length)
+      }
     }
   }
 
@@ -206,7 +217,8 @@ async function streamOnce(
       }
       if (event.argumentsDelta) {
         entry.args += event.argumentsDelta
-        store.updateToolPart(assistantId, entry.id, { args: entry.args })
+        // Coalesced: flush() pushes the accumulated args at most every 60ms.
+        flush(false)
       }
       toolCalls.set(event.index, entry)
     } else if (event.type === "usage") {

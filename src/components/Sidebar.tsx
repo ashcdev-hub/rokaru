@@ -63,9 +63,11 @@ export function Sidebar(props: { width?: number }) {
         value: target,
         duration: 400,
         ease: "outQuad",
+        once: true,
         onUpdate: (anim: any) => setShownFill(anim.targets[0].value),
       },
     )
+    if (!timeline.isPlaying) timeline.play()
   })
 
   const segments = () => {

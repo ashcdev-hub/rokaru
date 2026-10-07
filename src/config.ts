@@ -8,6 +8,10 @@ export interface SamplingConfig {
   topP: number
   topK: number
   maxTokens: number
+  minP: number
+  // 1.0 = disabled. Raise (e.g. 1.05-1.15) to break repetition loops.
+  repetitionPenalty: number
+  presencePenalty: number
 }
 
 export interface SandboxConfig {
@@ -58,6 +62,9 @@ export interface RokaruConfig {
   // Fixed height of the prompt box, in text rows (excluding the border).
   inputHeight: number
   sampling: SamplingConfig
+  // Per-model sampling overrides, keyed by model id (the id oMLX reports).
+  // Merged over `sampling` for that model.
+  modelSampling: Record<string, Partial<SamplingConfig>>
   sandbox: SandboxConfig
   web: WebConfig
   mcp: McpConfig
@@ -88,7 +95,11 @@ export const DEFAULT_CONFIG: RokaruConfig = {
     topP: 0.95,
     topK: 20,
     maxTokens: 4096,
+    minP: 0.0,
+    repetitionPenalty: 1.0,
+    presencePenalty: 0.0,
   },
+  modelSampling: {},
   sandbox: {
     extraWritePaths: [],
   },
@@ -139,6 +150,7 @@ function mergeConfig(partial: Partial<RokaruConfig>): RokaruConfig {
     systemPrompt: partial.systemPrompt ?? DEFAULT_CONFIG.systemPrompt,
     inputHeight: partial.inputHeight ?? DEFAULT_CONFIG.inputHeight,
     sampling: { ...DEFAULT_CONFIG.sampling, ...(partial.sampling ?? {}) },
+    modelSampling: { ...DEFAULT_CONFIG.modelSampling, ...(partial.modelSampling ?? {}) },
     sandbox: { ...DEFAULT_CONFIG.sandbox, ...(partial.sandbox ?? {}) },
     web: { ...DEFAULT_CONFIG.web, ...(partial.web ?? {}) },
     mcp: { servers: { ...DEFAULT_CONFIG.mcp.servers, ...(partial.mcp?.servers ?? {}) } },
@@ -146,6 +158,13 @@ function mergeConfig(partial: Partial<RokaruConfig>): RokaruConfig {
     diagnostics: { ...DEFAULT_CONFIG.diagnostics, ...(partial.diagnostics ?? {}) },
     notify: partial.notify ?? DEFAULT_CONFIG.notify,
   }
+}
+
+// Merge global sampling with any per-model override. Pure; used by the agent
+// for every request.
+export function resolveSampling(config: RokaruConfig, model: string): SamplingConfig {
+  const override = config.modelSampling[model]
+  return override ? { ...config.sampling, ...override } : config.sampling
 }
 
 export function loadConfig(): RokaruConfig {

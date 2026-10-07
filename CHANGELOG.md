@@ -3,6 +3,14 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.7.10] - 2026-10-07
+
+### Added
+
+- **Sampling control.** `sampling` gains `minP`, `repetitionPenalty` and
+  `presencePenalty` (all neutral by default), plus a top-level `modelSampling`
+  map for per-model overrides. Applied to every request, including subagents.
+
 ## [0.7.9] - 2026-10-07
 
 ### Fixed

@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process"
 import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
-import type { RokaruConfig } from "./config"
+import { resolveSampling, type RokaruConfig } from "./config"
 import { streamChat, type ChatMessage, type ContentPart, type ToolCall, type Usage } from "./omlx"
 import { getTool, toolSchemas, type ToolContext } from "./tools"
 import { redactSecrets } from "./redact"
@@ -66,6 +66,21 @@ export interface TurnOptions {
   workspace: string
   signal: AbortSignal
   attachments?: Attachment[]
+}
+
+// Sampling parameters resolved for the active model (global defaults merged
+// with any per-model override), ready to spread into a chat request.
+function samplingParams(options: TurnOptions) {
+  const sampling = resolveSampling(options.config, options.model)
+  return {
+    temperature: sampling.temperature,
+    topP: sampling.topP,
+    topK: sampling.topK,
+    maxTokens: sampling.maxTokens,
+    minP: sampling.minP,
+    repetitionPenalty: sampling.repetitionPenalty,
+    presencePenalty: sampling.presencePenalty,
+  }
 }
 
 function applyUsage(usage: Usage): void {
@@ -150,10 +165,7 @@ async function streamOnce(
       model: options.model,
       messages,
       tools: toolSchemas(options.config.web?.enabled === true, store.mode() === "plan"),
-      temperature: options.config.sampling.temperature,
-      topP: options.config.sampling.topP,
-      topK: options.config.sampling.topK,
-      maxTokens: options.config.sampling.maxTokens,
+      ...samplingParams(options),
     },
     options.signal,
   )) {
@@ -288,10 +300,7 @@ async function runSubagent(options: TurnOptions, prompt: string): Promise<string
         model: options.model,
         messages,
         tools: schemas,
-        temperature: options.config.sampling.temperature,
-        topP: options.config.sampling.topP,
-        topK: options.config.sampling.topK,
-        maxTokens: options.config.sampling.maxTokens,
+        ...samplingParams(options),
       },
       options.signal,
     )) {

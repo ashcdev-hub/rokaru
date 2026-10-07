@@ -53,6 +53,9 @@ export interface ChatParams {
   topP?: number
   topK?: number
   maxTokens?: number
+  minP?: number
+  repetitionPenalty?: number
+  presencePenalty?: number
 }
 
 export type StreamEvent =
@@ -111,6 +114,9 @@ export async function* streamChat(
   if (typeof params.topP === "number") body.top_p = params.topP
   if (typeof params.topK === "number") body.top_k = params.topK
   if (typeof params.maxTokens === "number") body.max_tokens = params.maxTokens
+  if (typeof params.minP === "number") body.min_p = params.minP
+  if (typeof params.repetitionPenalty === "number") body.repetition_penalty = params.repetitionPenalty
+  if (typeof params.presencePenalty === "number") body.presence_penalty = params.presencePenalty
 
   const res = await guardedFetch(`${opts.baseURL}/chat/completions`, {
     method: "POST",

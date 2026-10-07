@@ -14,7 +14,8 @@ import {
   sendCanaryProbe,
 } from "./privacyCheck"
 import { listModels, streamChat, type ModelInfo } from "./omlx"
-import { loadConfig, resolveApiKey } from "./config"
+import { CONFIG_DIR, loadConfig, resolveApiKey } from "./config"
+import * as learning from "./learning"
 import { copyToClipboard } from "./clipboard"
 import { COMMANDS, matchCommands, resolveCommandName } from "./commands"
 import { imageDataUrl } from "./image"
@@ -67,6 +68,12 @@ export function App() {
   onMount(() => {
     installLifecycle(renderer)
     store.setWorkspace(workspace)
+    learning.configure({
+      enabled: config.learning.enabled,
+      persist: config.learning.persist,
+      minRuns: config.learning.minRuns,
+      path: `${CONFIG_DIR}/learning.json`,
+    })
     const git = detectGit(workspace)
     if (git.branch.length > 0) store.setGitBranch(git.branch + (git.dirty ? "*" : ""))
     store.setWebEnabled(config.web?.enabled === true)
@@ -152,6 +159,8 @@ export function App() {
         "  /compact        summarise the conversation to free context",
         "  /undo [list]    revert the model's last file edit (or list the stack)",
         "  /redo           re-apply the last undone edit",
+        "  /tune           show the self-tuning scoreboard (which model works best)",
+        "  /good | /bad     label the last turn to train the scoreboard",
         "  /find <text>    search the conversation",
         "  /clear          clear the conversation",
         "  /new            start a new conversation",
@@ -223,6 +232,36 @@ export function App() {
     store.addInfoMessage(formatPrivacyReport(canary, scan, state).message)
   }
 
+  const suggestedCategories = new Set<string>()
+
+  const tuneMessage = () => {
+    const rows = learning.scoreboard()
+    if (rows.length === 0) {
+      return "tune: no outcomes recorded yet. Work on a few tasks, then use /good or /bad to label them."
+    }
+    const lines = ["tune scoreboard (wins/losses):"]
+    for (const row of rows) {
+      const rate = Math.round(learning.successRate(row) * 100)
+      const label = learning.CATEGORY_LABELS[row.category]
+      lines.push(`  ${label.padEnd(18)} ${row.model.padEnd(30)} ${row.wins}/${row.wins + row.losses}  ${rate}%`)
+    }
+    const best = learning.overallBest()
+    if (best) {
+      lines.push(`\nbest overall: ${best.model} (${Math.round(best.winRate * 100)}% over ${best.wins + best.losses} runs)`)
+    }
+    const category = learning.lastCategory()
+    if (category) {
+      const pick = learning.suggestion(category)
+      if (pick) {
+        lines.push(
+          `for ${learning.CATEGORY_LABELS[category]}: try ${pick.model} at temp ${pick.sampling.temperature}, rep ${pick.sampling.repetitionPenalty} (${Math.round(pick.winRate * 100)}% over ${pick.runs})`,
+        )
+      }
+    }
+    lines.push("\nscorecard is in-memory only unless learning.persist is enabled; never stores prompt or code.")
+    return lines.join("\n")
+  }
+
   const runCommand = (raw: string) => {
     const [rawName, ...rest] = raw.slice(1).trim().split(/\s+/)
     const arg = rest.join(" ").trim()
@@ -275,11 +314,27 @@ export function App() {
           )
           return
         }
-        store.showToast(undoLast() ?? "nothing to undo")
+        const undone = undoLast()
+        if (undone) learning.markUndone()
+        store.showToast(undone ?? "nothing to undo")
         return
       }
       case "redo": {
         store.showToast(redoLast() ?? "nothing to redo")
+        return
+      }
+      case "good": {
+        learning.addFeedback("good")
+        store.showToast("tune: noted as good")
+        return
+      }
+      case "bad": {
+        learning.addFeedback("bad")
+        store.showToast("tune: noted as bad")
+        return
+      }
+      case "tune": {
+        store.addInfoMessage(tuneMessage())
         return
       }
       case "purge-cache": {
@@ -485,6 +540,14 @@ export function App() {
     controller = new AbortController()
     void runTurn({ ...options(controller.signal), attachments }, text).finally(() => {
       controller = undefined
+      const category = learning.lastCategory()
+      if (category && !suggestedCategories.has(category)) {
+        const pick = learning.suggestion(category)
+        if (pick && pick.model !== store.model()) {
+          suggestedCategories.add(category)
+          store.showToast(`tune: ${pick.model} scores better for ${learning.CATEGORY_LABELS[category]} · /tune`, "info")
+        }
+      }
       if (queued !== undefined) {
         const next = queued
         queued = undefined

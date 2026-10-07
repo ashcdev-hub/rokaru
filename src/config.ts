@@ -58,6 +58,15 @@ export interface DiagnosticsConfig {
   command: string
 }
 
+export interface LearningConfig {
+  // Track which model/settings work best per task category and suggest them.
+  enabled: boolean
+  // Persist the (content-free) scorecard to disk so it survives restarts.
+  persist: boolean
+  // Minimum runs before a model/setting is considered for a suggestion.
+  minRuns: number
+}
+
 export interface RokaruConfig {
   baseURL: string
   systemPrompt: string
@@ -72,6 +81,7 @@ export interface RokaruConfig {
   mcp: McpConfig
   tools: ToolsConfig
   diagnostics: DiagnosticsConfig
+  learning: LearningConfig
   // Ring the terminal bell when a turn finishes.
   notify: boolean
 }
@@ -126,6 +136,11 @@ export const DEFAULT_CONFIG: RokaruConfig = {
     enabled: true,
     command: "",
   },
+  learning: {
+    enabled: true,
+    persist: false,
+    minRuns: 3,
+  },
   notify: true,
 }
 
@@ -159,6 +174,7 @@ function mergeConfig(partial: Partial<RokaruConfig>): RokaruConfig {
     mcp: { servers: { ...DEFAULT_CONFIG.mcp.servers, ...(partial.mcp?.servers ?? {}) } },
     tools: { ...DEFAULT_CONFIG.tools, ...(partial.tools ?? {}) },
     diagnostics: { ...DEFAULT_CONFIG.diagnostics, ...(partial.diagnostics ?? {}) },
+    learning: { ...DEFAULT_CONFIG.learning, ...(partial.learning ?? {}) },
     notify: partial.notify ?? DEFAULT_CONFIG.notify,
   }
 }

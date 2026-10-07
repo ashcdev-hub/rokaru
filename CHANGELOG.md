@@ -3,6 +3,15 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.8.0] - 2026-10-07
+
+### Added
+
+- **Self-tuning agent.** A private, content-free scorecard tracks which model
+  and settings work for each kind of task, and suggests better choices. `/tune`
+  shows the scoreboard, `/good` and `/bad` label a turn, and `learning.persist`
+  optionally keeps it across restarts (counts only, never prompts or code).
+
 ## [0.7.14] - 2026-10-07
 
 ### Added

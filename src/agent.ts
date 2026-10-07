@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { resolveSampling, type RokaruConfig } from "./config"
 import { friendlyError } from "./errors"
+import { categorize, recordTurn } from "./learning"
 import { estimateTokens, truncateToTokens } from "./tokens"
 import { streamChat, type ChatMessage, type ContentPart, type ToolCall, type Usage } from "./omlx"
 import { getTool, toolSchemas, type ToolContext } from "./tools"
@@ -511,6 +512,11 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
     }
   }
 
+  // Outcome tracking for the self-tuning scorecard (aggregate counts only).
+  let failed = false
+  let aborted = false
+  let diagnostics: "pass" | "fail" | "none" = "none"
+
   try {
     let round = 0
     let compacted = false
@@ -608,6 +614,7 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
             store.setStatus("tool")
             store.setStatusDetail("checks")
             const { code, output } = await runCommand(command, options.workspace, options.signal)
+            diagnostics = code !== 0 ? "fail" : "pass"
             if (code !== 0) {
               store.addInfoMessage(`diagnostics · ${command}\n${output.slice(0, 3000)}`)
               history.push({
@@ -636,13 +643,32 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
     const error = err as Error
     store.commitStream()
     if (error.name === "AbortError") {
+      aborted = true
       store.setStatus("idle")
       store.setStatusDetail("aborted")
       return
     }
+    failed = true
     store.setStatus("error")
     store.setStatusDetail("")
     store.setError(friendlyError(error, { baseURL: options.baseURL, model: options.model }))
+  } finally {
+    if (!aborted) {
+      const sampling = resolveSampling(config, options.model)
+      recordTurn({
+        category: categorize(userText),
+        model: options.model,
+        sampling: {
+          temperature: sampling.temperature,
+          repetitionPenalty: sampling.repetitionPenalty,
+          topK: sampling.topK,
+        },
+        ok: !failed,
+        diagnostics,
+        tokens: store.metrics().outputTokens,
+        ms: performance.now() - turnStart,
+      })
+    }
   }
 }
 

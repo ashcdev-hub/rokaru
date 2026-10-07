@@ -80,6 +80,8 @@ Type `/` for a menu (**Tab** completes) or **Ctrl+P** for the palette.
 | `/compact` | Summarise the conversation to reclaim context. |
 | `/undo [list]` | Revert the model's last file edit, or list the undo stack. |
 | `/redo` | Re-apply the last undone edit. |
+| `/tune` | Show the self-tuning scoreboard and a recommendation. |
+| `/good` · `/bad` | Label the last turn to train tuning. |
 | `/find <text>` | Jump through conversation matches (`n` next, `p` prev). |
 | `/clear` · `/new` | Start over. |
 | `/mcp` | Enable/disable MCP servers (interactive panel). |
@@ -111,6 +113,24 @@ Caveats: your prompts still pass through oMLX, which keeps its own KV cache and
 usage DB; rokaru doesn't touch those. Run **`/privacy-check`** to confirm what
 oMLX actually left on disk. And the sandbox blocks network and writes, but not
 **reads**; don't point it at a box full of secrets.
+
+## Self-tuning
+
+rokaru keeps a private, content-free scorecard of which model and settings
+actually work, for each kind of task, on your machine, and suggests better
+choices over time. It is on by default and never changes anything without you.
+
+- It categorises each turn (answering a question, fixing tests, refactoring,
+  adding a feature, docs, other) and records only aggregate counts per model and
+  settings. Your prompts, code and replies are never stored.
+- It infers success from turn errors, the post-edit check, and `/undo`; label a
+  turn yourself with `/good` or `/bad`.
+- It only suggests. After a turn it may hint that another model scores higher,
+  and `/tune` shows the scoreboard plus a recommendation for your last task.
+- The scorecard is in memory by default, so "nothing on disk" still holds. Set
+  `learning.persist: true` to keep it across restarts, in
+  `~/.config/rokaru/learning.json` (counts only, mode `0600`). `learning.minRuns`
+  (default 3) is how much evidence is needed before a suggestion.
 
 ## Features
 
@@ -246,6 +266,7 @@ session-only.
   "mcp": { "servers": {} },
   "tools": { "maxResultChars": 24000, "maxResultTokens": 6000, "maxRounds": 100 },
   "diagnostics": { "enabled": true, "command": "" },
+  "learning": { "enabled": true, "persist": false, "minRuns": 3 },
   "notify": true
 }
 ```

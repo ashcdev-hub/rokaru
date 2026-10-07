@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { resolveSampling, type RokaruConfig } from "./config"
 import { friendlyError } from "./errors"
+import { estimateTokens, truncateToTokens } from "./tokens"
 import { streamChat, type ChatMessage, type ContentPart, type ToolCall, type Usage } from "./omlx"
 import { getTool, toolSchemas, type ToolContext } from "./tools"
 import { redactSecrets } from "./redact"
@@ -50,7 +51,10 @@ function systemPrompt(config: RokaruConfig, planMode: boolean, workspace: string
     " Whenever you need input from the user — a choice between alternatives, a yes/no, which scope to work on — you MUST call the question tool with 2 to 6 options instead of writing the question in plain text. Never present numbered or lettered options (like (a)/(b) or 1./2./3.) in your reply text; always use the question tool for those. The tool shows the options as a pick list and returns the user's choice."
   const notes = projectInstructions(workspace)
   const project = notes.length > 0 ? `\n\nProject instructions (AGENTS.md):\n${notes}` : ""
-  return config.systemPrompt + mode + web + ask + project
+  // Order matters for oMLX's prefix cache: keep the large, stable content first
+  // and the volatile mode clause last, so toggling plan/build only changes the
+  // tail of the prompt rather than invalidating the cached prefix.
+  return config.systemPrompt + web + ask + project + mode
 }
 
 export interface Attachment {
@@ -382,7 +386,10 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
   let modified = false
   const capResult = (s: string) => {
     const cap = config.tools.maxResultChars
-    return s.length > cap ? `${s.slice(0, cap)}\n… (truncated ${s.length - cap} chars)` : s
+    let out = s.length > cap ? `${s.slice(0, cap)}\n… (truncated ${s.length - cap} chars)` : s
+    const maxTokens = config.tools.maxResultTokens
+    if (maxTokens > 0 && estimateTokens(out) > maxTokens) out = truncateToTokens(out, maxTokens)
+    return out
   }
 
   const executeCall = async (assistantId: string, call: { id: string; name: string; args: string }): Promise<string> => {

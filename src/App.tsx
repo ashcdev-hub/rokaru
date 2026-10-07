@@ -13,7 +13,7 @@ import {
   scanForText,
   sendCanaryProbe,
 } from "./privacyCheck"
-import { listModels, type ModelInfo } from "./omlx"
+import { listModels, streamChat, type ModelInfo } from "./omlx"
 import { loadConfig, resolveApiKey } from "./config"
 import { copyToClipboard } from "./clipboard"
 import { COMMANDS, matchCommands, resolveCommandName } from "./commands"
@@ -97,10 +97,33 @@ export function App() {
     return s === "thinking" || s === "streaming" || s === "tool" || s === "permission"
   }
 
+  // Best-effort warm-up so the first real prompt doesn't pay the model-load /
+  // cold-prefill cost. Fired in the background; failures are ignored.
+  const warmUp = (modelId: string) => {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 120_000)
+    void (async () => {
+      try {
+        for await (const event of streamChat(
+          { baseURL: config.baseURL, apiKey: resolveApiKey() },
+          { model: modelId, messages: [{ role: "user", content: "hi" }], maxTokens: 1, temperature: 0 },
+          controller.signal,
+        )) {
+          if (event.type === "finish") break
+        }
+      } catch {
+        // ignore: warm-up is optional
+      } finally {
+        clearTimeout(timer)
+      }
+    })()
+  }
+
   const applyModel = (model: ModelInfo) => {
     store.setModel(model.id)
     store.setModelLimit(model.maxModelLen)
     store.showToast(`model · ${model.id}`)
+    warmUp(model.id)
   }
 
   const options = (signal: AbortSignal): TurnOptions => ({
@@ -153,7 +176,8 @@ export function App() {
       return
     }
     store.setFindNav({ query, hits, at: 0 })
-    scrollTranscriptToMessage(hits[0] ?? 0)
+    // Defer so the (possibly windowed) transcript has re-rendered in full first.
+    setTimeout(() => scrollTranscriptToMessage(hits[0] ?? 0), 0)
   }
 
   const stepFindNav = (delta: number) => {

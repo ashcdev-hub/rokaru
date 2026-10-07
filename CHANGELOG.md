@@ -3,6 +3,24 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.7.14] - 2026-10-07
+
+### Added
+
+- **Performance tweaks.** Token-aware tool-result caps (`tools.maxResultTokens`),
+  transcript windowing for long sessions, and a background warm-up when a model
+  is selected.
+
+### Changed
+
+- The plan/build mode line moved to the end of the system prompt so toggling
+  modes keeps oMLX's cached prefix.
+
+### Fixed
+
+- The permission prompt now trims large diffs and long commands so the
+  allow/deny options stay on screen.
+
 ## [0.7.13] - 2026-10-07
 
 ### Changed

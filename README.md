@@ -141,7 +141,8 @@ Type `@` in the prompt to pick a workspace file by name (fuzzy, ignores
 - Pastes longer than a few lines collapse to a `Pasted N lines` row and send with
   your message (`⌫` on an empty box drops them); the box grows to `inputHeight`
   rows (default 10).
-- Each result is capped by `tools.maxResultChars` (default 24,000); rounds per
+- Each result is capped by `tools.maxResultChars` (default 24,000) and by
+  `tools.maxResultTokens` (default 6,000); rounds per
   turn by `tools.maxRounds` (default 100; `0` = unlimited).
 - **Project context & checks.** A workspace `AGENTS.md` is loaded into the system
   prompt. After edits, rokaru runs the project check once (a detected `typecheck`
@@ -243,7 +244,7 @@ session-only.
   "sandbox": { "extraWritePaths": [] },
   "web": { "enabled": false },
   "mcp": { "servers": {} },
-  "tools": { "maxResultChars": 24000, "maxRounds": 100 },
+  "tools": { "maxResultChars": 24000, "maxResultTokens": 6000, "maxRounds": 100 },
   "diagnostics": { "enabled": true, "command": "" },
   "notify": true
 }

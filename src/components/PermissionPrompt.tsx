@@ -41,8 +41,14 @@ const SUMMARY_VERB: Record<string, string> = {
 
 function CommandPreview(props: { command: string }) {
   const lines = props.command.replace(/\s+$/, "").split("\n")
+  const shown = lines.slice(0, MAX_LINES)
   return (
-    <For each={lines}>{(line, i) => <text fg={getTheme().good}>{`${i() === 0 ? "$ " : "  "}${line}`}</text>}</For>
+    <>
+      <For each={shown}>{(line, i) => <text fg={getTheme().good}>{`${i() === 0 ? "$ " : "  "}${line}`}</text>}</For>
+      <Show when={lines.length > shown.length}>
+        <text fg={getTheme().dim}>{`… (${lines.length - shown.length} more lines)`}</text>
+      </Show>
+    </>
   )
 }
 
@@ -61,10 +67,14 @@ function WritePreview(props: { path: string; content: string }) {
 }
 
 function EditPreview(props: { path: string; oldString: string; newString: string }) {
+  const all = createMemo(() => diffLines(props.oldString, props.newString))
   return (
     <>
       <text fg={getTheme().blue}>{`Edit ${props.path}`}</text>
-      <DiffView lines={diffLines(props.oldString, props.newString)} />
+      <DiffView lines={all().slice(0, MAX_LINES)} />
+      <Show when={all().length > MAX_LINES}>
+        <text fg={getTheme().dim}>{`… (${all().length - MAX_LINES} more lines)`}</text>
+      </Show>
     </>
   )
 }
@@ -96,7 +106,7 @@ function ReplacePreview(props: { args: any }) {
       </text>
       <Show when={files().length > 0}>
         <text fg={getTheme().dim}>{files()[0].path}</text>
-        <DiffView lines={diffLines(files()[0].before, files()[0].after)} />
+        <DiffView lines={diffLines(files()[0].before, files()[0].after).slice(0, MAX_LINES)} />
       </Show>
       <Show when={files().length > 1}>
         <text fg={getTheme().dim}>{`… and ${files().length - 1} more file(s)`}</text>

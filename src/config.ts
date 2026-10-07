@@ -46,6 +46,8 @@ export interface McpConfig {
 export interface ToolsConfig {
   // Cap on characters of a single tool result sent to the model.
   maxResultChars: number
+  // Cap on estimated tokens of a single tool result (0 = no token cap).
+  maxResultTokens: number
   // Max tool-call rounds per turn before the agent is stopped.
   maxRounds: number
 }
@@ -116,6 +118,7 @@ export const DEFAULT_CONFIG: RokaruConfig = {
   },
   tools: {
     maxResultChars: 24_000,
+    maxResultTokens: 6_000,
     // 0 = no limit. Kept high by default so long tasks aren't cut short.
     maxRounds: 100,
   },

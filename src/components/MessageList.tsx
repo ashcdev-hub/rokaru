@@ -1,5 +1,5 @@
 /** @jsxImportSource @opentui/solid */
-import { For, Index, Show, createSignal, onCleanup, onMount } from "solid-js"
+import { For, Index, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js"
 import { useTerminalDimensions } from "@opentui/solid"
 import type { ScrollBoxRenderable } from "@opentui/core"
 import { getTheme, sg } from "../theme"
@@ -9,6 +9,7 @@ import { FadeIn, Spinner } from "./anim"
 import { decorateAssistant } from "../highlight"
 import {
   expandTools,
+  findNav,
   messages,
   status,
   streamBuffer,
@@ -18,6 +19,7 @@ import {
   toggleToolExpanded,
 } from "../store"
 import type { Part, StreamKind, UIMessage } from "../store"
+import { transcriptWindow } from "../transcriptWindow"
 
 const COLLAPSE_LINES = 10
 
@@ -320,6 +322,11 @@ function EmptyState() {
   )
 }
 
+// Only the most recent messages are mounted; the rest stay in the store and are
+// available again during /find or after /compact. Keeps very long sessions
+// smooth without re-rendering the whole transcript on every token.
+const RENDER_WINDOW = 200
+
 export function MessageList() {
   const streamingId = () => {
     const list = messages()
@@ -328,6 +335,8 @@ export function MessageList() {
     const s = status()
     return s === "streaming" || s === "thinking" || s === "tool" ? last.id : undefined
   }
+
+  const windowed = createMemo(() => transcriptWindow(messages(), RENDER_WINDOW, Boolean(findNav())))
 
   return (
     <scrollbox
@@ -341,11 +350,20 @@ export function MessageList() {
       <Show when={messages().length === 0}>
         <EmptyState />
       </Show>
-      <Index each={messages()}>
+      <Show when={windowed().hidden > 0}>
+        <text fg={getTheme().dim}>
+          {`… ${windowed().hidden} earlier messages hidden (/find to search, /compact to trim)`}
+        </text>
+      </Show>
+      <For each={windowed().list}>
         {(message, index) => (
-          <MessageView message={message()} streaming={streamingId() === message().id} first={index === 0} />
+          <MessageView
+            message={message}
+            streaming={streamingId() === message.id}
+            first={windowed().hidden + index() === 0}
+          />
         )}
-      </Index>
+      </For>
     </scrollbox>
   )
 }

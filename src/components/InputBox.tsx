@@ -1,8 +1,10 @@
 /** @jsxImportSource @opentui/solid */
-import { onMount } from "solid-js"
+import { createSignal, onMount, Show } from "solid-js"
 import { defaultTextareaKeyBindings, type KeyBinding, type TextareaRenderable } from "@opentui/core"
-import { getTheme, sg } from "../theme"
-import { mode, model, status } from "../store"
+import { usePaste, useTerminalDimensions } from "@opentui/solid"
+import { getTheme } from "../theme"
+import { pastedLineCount, pastedText, questionTyping, setPastedText, status } from "../store"
+import { PromptPanel } from "./PromptPanel"
 
 const bindings: KeyBinding[] = [
   ...defaultTextareaKeyBindings.filter((b) => b.action !== "submit" && b.action !== "newline"),
@@ -21,6 +23,16 @@ export interface InputHandle {
   focus(): void
 }
 
+const MIN_ROWS = 3
+const DEFAULT_MAX_ROWS = 10
+const PASTE_COLLAPSE_LINES = 3
+const PASTE_COLLAPSE_CHARS = 200
+
+export function shouldCollapsePaste(text: string): boolean {
+  if (text.length === 0) return false
+  return text.split("\n").length > PASTE_COLLAPSE_LINES || text.length > PASTE_COLLAPSE_CHARS
+}
+
 export function InputBox(props: {
   onSubmit: (text: string) => void
   focused?: boolean
@@ -29,70 +41,92 @@ export function InputBox(props: {
   onContentChange?: (value: string) => void
 }) {
   let ref: TextareaRenderable | undefined
+  const dims = useTerminalDimensions()
   const busy = () => status() !== "idle" && status() !== "error"
-  const rows = () => Math.max(3, props.height ?? 8)
+  const maxRows = () => Math.max(MIN_ROWS, props.height ?? DEFAULT_MAX_ROWS)
+  const [content, setContent] = createSignal("")
+
+  usePaste((event: any) => {
+    const text = new TextDecoder().decode(event.bytes ?? new Uint8Array())
+    if (!shouldCollapsePaste(text)) return
+    event.preventDefault()
+    setPastedText((prev) => (prev ? `${prev}\n${text}` : text))
+  })
+
+  const innerWidth = () => Math.max(20, (dims()?.width ?? 100) - 34 - 7)
+  const neededRows = (text: string) => {
+    let needed = 0
+    for (const line of text.split("\n")) {
+      needed += Math.max(1, Math.ceil(line.length / innerWidth()))
+    }
+    return needed
+  }
+  const rows = () => Math.min(maxRows(), Math.max(MIN_ROWS, neededRows(content())))
 
   const submit = () => {
-    if (busy() || !ref) return
+    if (!ref) return
+    if (busy() && !questionTyping()) return
     const text = ref.plainText.trim()
-    if (text.length === 0) return
+    if (text.length === 0 && pastedText().length === 0) return
     ref.clear()
+    setContent("")
     props.onContentChange?.("")
     props.onSubmit(text)
+  }
+
+  let collapsing = false
+  const track = (value: string) => {
+    if (!collapsing && value.length > 0 && neededRows(value) > maxRows()) {
+      collapsing = true
+      try {
+        setPastedText((prev) => (prev ? `${prev}\n${value}` : value))
+        ref?.clear()
+        setContent("")
+        props.onContentChange?.("")
+      } finally {
+        collapsing = false
+      }
+      return
+    }
+    setContent(value)
+    props.onContentChange?.(value)
   }
 
   onMount(() =>
     props.onReady?.({
       setText: (text: string) => {
         ref?.setText(text)
-        props.onContentChange?.(text)
+        track(text)
       },
       getText: () => ref?.plainText ?? "",
       clear: () => {
         ref?.clear()
-        props.onContentChange?.("")
+        track("")
       },
       focus: () => ref?.focus(),
     }),
   )
 
-  const modeLabel = () => (mode() === "plan" ? "Plan" : "Build")
-  const modeColour = () => (mode() === "plan" ? getTheme().plan : getTheme().build)
-
   return (
-    <box
-      flexDirection="column"
-      height={rows() + 3}
-      flexShrink={0}
-      border
-      borderStyle="rounded"
-      borderColor={modeColour()}
-    >
-      <box flexDirection="row" flexGrow={1} paddingLeft={1} paddingRight={1}>
-        {/* Left accent line reflects the mode identity (blue build / purple plan) */}
-        <box width={1} backgroundColor={modeColour()} marginRight={2} />
-        <box flexDirection="column" flexGrow={1}>
-          <textarea
-            ref={(el: TextareaRenderable) => (ref = el)}
-            focused={props.focused ?? true}
-            flexGrow={1}
-            height={rows()}
-            placeholder={busy() ? "working… (esc to abort)" : "message · / for commands · enter send · shift+enter newline"}
-            keyBindings={bindings}
-            onSubmit={submit}
-            onContentChange={() => props.onContentChange?.(ref?.plainText ?? "")}
-            textColor={getTheme().text}
-            focusedTextColor={getTheme().text}
-            placeholderColor={getTheme().dim}
-          />
-          {/* Mode · model footer, like opencode's prompt line */}
-          <text>
-            <span {...sg(modeColour())}>{modeLabel()}</span>
-            <span {...sg(getTheme().dim)}>{"  ·  "}</span>
-            <span {...sg(getTheme().text)}>{model() || "no model"}</span>
-          </text>
-        </box>
-      </box>
-    </box>
+    <PromptPanel height={rows() + 3 + (pastedLineCount() > 0 ? 1 : 0)}>
+      <Show when={pastedLineCount() > 0}>
+        <text fg={getTheme().accent}>
+          {`📎 Pasted ${pastedLineCount()} line${pastedLineCount() === 1 ? "" : "s"} · send with your message · ⌫ to drop`}
+        </text>
+      </Show>
+      <textarea
+        ref={(el: TextareaRenderable) => (ref = el)}
+        focused={props.focused ?? true}
+        flexGrow={1}
+        height={rows()}
+        placeholder={busy() ? "working… (esc to abort)" : ""}
+        keyBindings={bindings}
+        onSubmit={submit}
+        onContentChange={() => track(ref?.plainText ?? "")}
+        textColor={getTheme().text}
+        focusedTextColor={getTheme().text}
+        placeholderColor={getTheme().dim}
+      />
+    </PromptPanel>
   )
 }

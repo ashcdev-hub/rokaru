@@ -58,6 +58,7 @@ export const [inputValue, setInputValue] = createSignal("")
 export const [menuIndex, setMenuIndex] = createSignal(0)
 export const [palette, setPalette] = createSignal(false)
 export const [paletteIndex, setPaletteIndex] = createSignal(0)
+export const [paletteQuery, setPaletteQuery] = createSignal("")
 export const [contextPercent, setContextPercent] = createSignal(0)
 export const [promptTokens, setPromptTokens] = createSignal(0)
 export const [workspace, setWorkspace] = createSignal("")
@@ -129,6 +130,21 @@ export function removePendingImage(index: number): void {
 
 export function clearPendingImages(): void {
   setPendingImages([])
+}
+
+// Large pastes are collapsed to a "Pasted N lines" attachment row instead of
+// going into the textarea, so the prompt box stays compact. The full text is
+// folded into the message on submit.
+export const [pastedText, setPastedText] = createSignal("")
+
+export function pastedLineCount(): number {
+  const text = pastedText()
+  if (text.length === 0) return 0
+  return text.split("\n").length
+}
+
+export function clearPastedText(): void {
+  setPastedText("")
 }
 
 export function addUserMessage(text: string, images?: string[]): void {
@@ -272,6 +288,55 @@ export function answerPermission(decision: PermissionDecision): void {
   current.resolve(decision)
 }
 
+export interface QuestionOption {
+  label: string
+  description?: string
+}
+
+export type QuestionAnswer =
+  | { kind: "option"; index: number; label: string }
+  | { kind: "custom"; text: string }
+  | { kind: "dismissed" }
+
+export interface QuestionRequest {
+  toolCallId: string
+  question: string
+  options: QuestionOption[]
+  resolve: (answer: QuestionAnswer) => void
+}
+
+export const [question, setQuestion] = createSignal<QuestionRequest | undefined>(undefined)
+export const [questionIndex, setQuestionIndex] = createSignal(0)
+export const [questionTyping, setQuestionTyping] = createSignal(false)
+
+export function questionRowCount(): number {
+  const pending = question()
+  if (!pending) return 0
+  return pending.options.length + 1
+}
+
+export function requestQuestion(toolCallId: string, questionText: string, options: QuestionOption[]): Promise<QuestionAnswer> {
+  return new Promise((resolve) => {
+    setStatus("tool")
+    setQuestionIndex(0)
+    setQuestionTyping(false)
+    setQuestion({ toolCallId, question: questionText, options, resolve })
+  })
+}
+
+export function moveQuestionIndex(delta: number): void {
+  setQuestionIndex((current) => Math.max(0, Math.min(questionRowCount() - 1, current + delta)))
+}
+
+export function answerQuestion(answer: QuestionAnswer): void {
+  const current = question()
+  if (!current) return
+  setQuestion(undefined)
+  setQuestionTyping(false)
+  setStatus("tool")
+  current.resolve(answer)
+}
+
 export function resetSession(): void {
   for (const message of messages()) {
     for (const part of message.parts) {
@@ -281,12 +346,18 @@ export function resetSession(): void {
   }
   setMessages([])
   setStreamBuffer(undefined)
+  setPermission(undefined)
+  setQuestion(undefined)
+  setQuestionTyping(false)
+  setPalette(false)
+  setPaletteQuery("")
   setMetrics(EMPTY_METRICS)
   setContextPercent(0)
   setPromptTokens(0)
   setAllowedTools([])
   setAllowedCommands([])
   setPendingImages([])
+  setPastedText("")
   setTodos([])
   setStatus("idle")
   setStatusDetail("")

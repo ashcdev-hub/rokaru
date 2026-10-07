@@ -30,7 +30,8 @@ rokaru
 
 ## Commands
 
-Type `/` for a menu (tab completes), or `ctrl+p` for the palette:
+Type `/` for a menu (tab completes), or `ctrl+p` for the palette (type to
+filter, `enter` runs the action):
 
 - `/model` — switch model (list re-fetched from oMLX), or `/model <name>`.
 - `/plan`, `/build` — toggle read-only planning / full editing.
@@ -72,8 +73,8 @@ but not **reads**; don't point it at a box full of secrets.
 
 ## Tools
 
-`read_file`, `list_dir`, `glob`, `grep`, `view_image`, `task`, `todo_write` run
-automatically; `write_file`, `edit_file`, `bash` ask first. Choose **allow once**,
+`read_file`, `list_dir`, `glob`, `grep`, `view_image`, `task`, `todo_write`,
+`question` run automatically; `write_file`, `edit_file`, `bash` ask first. Choose **allow once**,
 **always allow** (stops asking for that tool for the rest of the session) or
 **deny** with `↑`/`↓` and `enter` (or `y`/`a`/`n`). The prompt previews what will
 run (a `$` block for `bash`, a diff for edits). For `bash`, "always allow"
@@ -84,6 +85,13 @@ capped (`tools.maxResultChars`). `tools.maxRounds` bounds tool rounds per turn
 
 `read_file` pages large files with `offset`/`limit`. `task` delegates a read-only
 investigation to a subagent with its own context.
+
+When the model needs a decision it calls `question`, which takes over the
+prompt with a pick list (`↑↓`/`1-6` to choose, `enter` to answer, `esc`
+dismisses, or type your own answer) instead of asking in plain text. Pastes
+longer than a few lines collapse to a `Pasted N lines` row inside the prompt
+and send with your message (`⌫` on an empty box drops them); the box itself
+grows to 10 typing rows as you type (`inputHeight` sets the max).
 
 **Project context & checks.** A workspace `AGENTS.md` is loaded into the system
 prompt. After the model edits files, rokaru runs the project check once (a
@@ -168,7 +176,7 @@ exit, like everything else).
 {
   "baseURL": "http://127.0.0.1:8000/v1",
   "systemPrompt": "You are rokaru...",
-  "inputHeight": 8,
+  "inputHeight": 10,
   "sampling": { "temperature": 0.7, "topP": 0.95, "topK": 20, "maxTokens": 4096 },
   "sandbox": { "extraWritePaths": [] },
   "web": { "enabled": false },

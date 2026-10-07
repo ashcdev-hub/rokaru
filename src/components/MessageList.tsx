@@ -78,6 +78,8 @@ function toolHeader(name: string, argsRaw: string): { lead: string; text: string
       return { lead: "⌕", text: `Search ${args.query ?? ""}`, colour: getTheme().meter }
     case "web_fetch":
       return { lead: "⌕", text: `Fetch ${args.url ?? ""}`, colour: getTheme().meter }
+    case "question":
+      return { lead: "?", text: args.question ?? "Question", colour: getTheme().accent }
     default:
       return { lead: "⚙", text: name, colour: getTheme().tool }
   }

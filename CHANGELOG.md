@@ -3,6 +3,26 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.6.2] - 2026-10-07
+
+### Added
+
+- **`question` tool.** When the model needs a decision it takes over the prompt
+  with a pick list (`↑↓`/`1-6` to choose, `enter` to answer, `esc` dismisses,
+  or type your own answer) instead of asking in plain text.
+
+### Changed
+
+- **Prompt panel overhaul.** The input box starts compact and grows to 10
+  typing rows as you type; permission prompts render inside the prompt panel
+  itself; the sidebar header shows `rokaru vX` and the old bottom version line
+  is gone.
+- **`ctrl+p` searches.** Typing filters the palette and `enter` jumps straight
+  to the action (e.g. the model picker) instead of inserting `/model`.
+- **Pasted text collapses.** Pastes longer than a few lines — or anything taller
+  than the box — become a `Pasted N lines` row inside the prompt and send with
+  your message (`⌫` on an empty box drops them).
+
 ## [0.6.0] - 2026-10-07
 
 ### Changed

@@ -21,7 +21,7 @@ import { ModelPicker } from "./components/ModelPicker"
 import { AsciiLogo } from "./components/AsciiLogo"
 import { ChatView } from "./components/ChatView"
 import { SwitchModel } from "./components/SwitchModel"
-import { CommandPalette, type PaletteAction } from "./components/CommandPalette"
+import { CommandPalette, filterPaletteActions, type PaletteAction } from "./components/CommandPalette"
 import { McpPanel } from "./components/McpPanel"
 import { ThemePanel } from "./components/ThemePanel"
 import { StartupBackground } from "./components/StartupBackground"
@@ -272,7 +272,9 @@ export function App() {
       description: command.description,
       run: () => {
         store.setPalette(false)
-        if (command.name === "model" || command.name === "image" || command.name === "find") {
+        if (command.name === "model") {
+          store.setSwitchingModel(true)
+        } else if (command.name === "image" || command.name === "find") {
           inputHandle?.setText(`/${command.name} `)
           inputHandle?.focus()
         } else {
@@ -310,6 +312,8 @@ export function App() {
       run: () => secureExit(renderer, 130),
     },
   ]
+
+  const visiblePaletteActions = () => filterPaletteActions(paletteActions(), store.paletteQuery())
 
   // MCP servers are toggled here, per session only (never autostarted).
   const toggleMcp = async (index: number) => {
@@ -399,17 +403,44 @@ export function App() {
     })
   }
 
+  const pickQuestionRow = (row: number) => {
+    const pending = store.question()
+    if (!pending) return
+    if (row < pending.options.length) {
+      const label = pending.options[row]?.label ?? ""
+      store.answerQuestion({ kind: "option", index: row, label })
+    } else if (row === pending.options.length) {
+      inputHandle?.clear()
+      store.setQuestionTyping(true)
+      inputHandle?.focus()
+    }
+  }
+
   const submit = (text: string) => {
+    const typing = store.questionTyping()
+    const pendingQuestion = store.question()
+    if (typing && pendingQuestion) {
+      const stash = store.pastedText()
+      const answer = (text + (stash ? `\n${stash}` : "")).trim()
+      if (answer.length === 0) return
+      inputHandle?.clear()
+      store.clearPastedText()
+      store.answerQuestion({ kind: "custom", text: answer })
+      return
+    }
+    const stash = store.pastedText()
+    const full = (text + (stash ? `\n${stash}` : "")).trim()
+    store.clearPastedText()
     if (busy()) {
-      queued = text
+      queued = full
       store.showToast("queued — will send when the model is free", "info")
       return
     }
-    if (text.startsWith("/")) {
-      runCommand(text)
+    if (full.startsWith("/")) {
+      runCommand(full)
       return
     }
-    send(text)
+    send(full)
   }
 
   const recall = (delta: number) => {
@@ -488,25 +519,41 @@ export function App() {
 
     if (key.ctrl && key.name === "p") {
       key.preventDefault()
-      store.setPaletteIndex(0)
-      store.setPalette(true)
+      if (store.palette()) {
+        store.setPalette(false)
+        store.setPaletteQuery("")
+      } else {
+        store.setPaletteIndex(0)
+        store.setPaletteQuery("")
+        store.setPalette(true)
+      }
       return
     }
 
     if (store.palette()) {
-      const actions = paletteActions()
+      if (key.ctrl || key.meta) return
+      const actions = visiblePaletteActions()
       if (key.name === "escape") {
         key.preventDefault()
         store.setPalette(false)
+        store.setPaletteQuery("")
       } else if (key.name === "up") {
         key.preventDefault()
         store.setPaletteIndex(Math.max(0, store.paletteIndex() - 1))
       } else if (key.name === "down") {
         key.preventDefault()
-        store.setPaletteIndex(Math.min(actions.length - 1, store.paletteIndex() + 1))
+        store.setPaletteIndex(Math.min(Math.max(0, actions.length - 1), store.paletteIndex() + 1))
       } else if (key.name === "return" || key.name === "enter") {
         key.preventDefault()
         actions[store.paletteIndex()]?.run()
+      } else if (key.name === "backspace" || key.name === "delete") {
+        key.preventDefault()
+        store.setPaletteQuery(store.paletteQuery().slice(0, -1))
+        store.setPaletteIndex(0)
+      } else if (key.name === "space" || (key.name !== undefined && key.name.length === 1)) {
+        key.preventDefault()
+        store.setPaletteQuery(store.paletteQuery() + (key.name === "space" ? " " : (key.name ?? "")))
+        store.setPaletteIndex(0)
       }
       return
     }
@@ -604,6 +651,37 @@ export function App() {
       return
     }
 
+    const pendingQuestion = store.question()
+    if (pendingQuestion) {
+      if (store.questionTyping()) {
+        if (key.name === "escape") {
+          key.preventDefault()
+          store.setQuestionTyping(false)
+        }
+        return
+      }
+      if (key.name === "up") {
+        key.preventDefault()
+        store.moveQuestionIndex(-1)
+      } else if (key.name === "down") {
+        key.preventDefault()
+        store.moveQuestionIndex(1)
+      } else if (key.name === "return" || key.name === "enter") {
+        key.preventDefault()
+        pickQuestionRow(store.questionIndex())
+      } else if (key.name === "escape") {
+        key.preventDefault()
+        store.answerQuestion({ kind: "dismissed" })
+      } else if (/^[1-9]$/.test(key.name ?? "")) {
+        const row = Number(key.name) - 1
+        if (row < store.questionRowCount()) {
+          key.preventDefault()
+          pickQuestionRow(row)
+        }
+      }
+      return
+    }
+
     if (key.name === "escape" && busy()) {
       key.preventDefault()
       controller?.abort()
@@ -612,6 +690,15 @@ export function App() {
 
     // Menu/history keys only apply to the chat prompt, not the model picker.
     if (phase() === "ready" && !busy()) {
+      if (
+        (key.name === "backspace" || key.name === "delete") &&
+        store.pastedText().length > 0 &&
+        store.inputValue() === ""
+      ) {
+        key.preventDefault()
+        store.clearPastedText()
+        return
+      }
       const matches = menuMatches()
       if (matches.length > 0) {
         if (key.name === "up") {
@@ -692,7 +779,11 @@ export function App() {
               </Show>
             }
           >
-            <CommandPalette actions={paletteActions()} onPick={(index) => paletteActions()[index]?.run()} />
+            <CommandPalette
+              actions={visiblePaletteActions()}
+              query={store.paletteQuery()}
+              onPick={(index) => visiblePaletteActions()[index]?.run()}
+            />
           </Show>
         }
       >

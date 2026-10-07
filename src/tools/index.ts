@@ -1,6 +1,7 @@
 import { bashTool } from "./bash"
 import { editFileTool, globTool, grepTool, listDirTool, readFileTool, writeFileTool } from "./fs"
 import { viewImageTool } from "./image"
+import { questionTool } from "./question"
 import { taskTool } from "./task"
 import { todoWriteTool } from "./todo"
 import { webFetchTool, webSearchTool } from "./web"
@@ -12,6 +13,7 @@ export const TOOLS: ToolDef[] = [
   globTool,
   grepTool,
   viewImageTool,
+  questionTool,
   taskTool,
   todoWriteTool,
   webSearchTool,

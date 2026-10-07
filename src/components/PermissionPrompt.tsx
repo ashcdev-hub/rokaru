@@ -68,7 +68,7 @@ function Summary(props: { name: string; args: any; raw: string }) {
   return <text fg={getTheme().text}>{verb ? `${verb} ${detail}` : props.raw.replace(/\s+/g, " ").slice(0, 160)}</text>
 }
 
-export function PermissionPrompt(props: { request: PermissionRequest }) {
+export function PermissionBody(props: { request: PermissionRequest }) {
   const name = () => props.request.name
   const args = () => parseArgs(props.request.args)
 
@@ -82,17 +82,17 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
   }
 
   return (
-    <box
-      flexDirection="column"
-      flexShrink={0}
-      border
-      borderStyle="rounded"
-      borderColor={getTheme().warn}
-      title={`permission · ${name()}`}
-      paddingLeft={1}
-      paddingRight={1}
-    >
-      <box flexDirection="column" backgroundColor={getTheme().panelBg} paddingLeft={1} paddingRight={1}>
+    <>
+      <text fg={getTheme().warn}>
+        <b>{`permission · ${name()}`}</b>
+      </text>
+      <box
+        flexDirection="column"
+        backgroundColor={getTheme().panelBg}
+        paddingLeft={1}
+        paddingRight={1}
+        marginTop={1}
+      >
         <Show
           when={name() === "bash"}
           fallback={
@@ -129,6 +129,6 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
         )}
       </For>
       <text fg={getTheme().dim}>↑/↓ choose · enter confirm · y/a/n quick</text>
-    </box>
+    </>
   )
 }

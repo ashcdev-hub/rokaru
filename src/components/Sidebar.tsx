@@ -103,8 +103,11 @@ export function Sidebar(props: { width?: number }) {
       paddingRight={1}
       paddingTop={1}
     >
-      <text fg={getTheme().accent}>
-        <b>rokaru</b>
+      <text>
+        <span {...sg(getTheme().accent)}>
+          <b>rokaru</b>
+        </span>
+        <span {...sg(getTheme().dim)}>{` v${VERSION}`}</span>
       </text>
       <text fg={getTheme().dim}>private session</text>
       <Show when={gitBranch().length > 0}>
@@ -178,9 +181,6 @@ export function Sidebar(props: { width?: number }) {
       </box>
 
       <box flexGrow={1} />
-      <box flexShrink={0} marginTop={1}>
-        <text fg={getTheme().dim}>{`rokaru v${VERSION}`}</text>
-      </box>
     </box>
   )
 }

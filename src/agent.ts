@@ -45,9 +45,11 @@ function systemPrompt(config: RokaruConfig, planMode: boolean, workspace: string
   const web = config.web?.enabled
     ? " You can search the web read-only with web_search, then read a result with web_fetch. You cannot post or send data anywhere."
     : " You have no network access; do not attempt to reach any host."
+  const ask =
+    " Whenever you need input from the user — a choice between alternatives, a yes/no, which scope to work on — you MUST call the question tool with 2 to 6 options instead of writing the question in plain text. Never present numbered or lettered options (like (a)/(b) or 1./2./3.) in your reply text; always use the question tool for those. The tool shows the options as a pick list and returns the user's choice."
   const notes = projectInstructions(workspace)
   const project = notes.length > 0 ? `\n\nProject instructions (AGENTS.md):\n${notes}` : ""
-  return config.systemPrompt + mode + web + project
+  return config.systemPrompt + mode + web + ask + project
 }
 
 export interface Attachment {
@@ -311,7 +313,7 @@ async function runSubagent(options: TurnOptions, prompt: string): Promise<string
     })
     for (const call of ordered) {
       const tool = getTool(call.name)
-      if (!tool || tool.destructive) {
+      if (!tool || tool.destructive || call.name === "question") {
         messages.push({ role: "tool", tool_call_id: call.id, name: call.name, content: "(subagent is read-only)" })
         continue
       }
@@ -362,6 +364,44 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
   }
 
   const executeCall = async (assistantId: string, call: { id: string; name: string; args: string }): Promise<string> => {
+    if (call.name === "question") {
+      store.setStatus("tool")
+      store.setStatusDetail("question")
+      store.updateToolPart(assistantId, call.id, { status: "running" })
+      const startedAt = performance.now()
+      try {
+        const parsed = parseArgs(call.args)
+        const questionText = String(parsed?.question ?? "").trim()
+        const rawOptions = Array.isArray(parsed?.options) ? parsed.options : []
+        const options = rawOptions
+          .map((entry: any) =>
+            typeof entry === "string"
+              ? { label: entry }
+              : { label: String(entry?.label ?? ""), description: entry?.description ? String(entry.description) : undefined },
+          )
+          .filter((entry: { label: string }) => entry.label.length > 0)
+          .slice(0, 6)
+        if (questionText.length === 0 || options.length < 2) {
+          const result = "error: the question tool needs a question and at least two options"
+          store.updateToolPart(assistantId, call.id, { status: "error", result, durationMs: performance.now() - startedAt })
+          return result
+        }
+        const answer = await store.requestQuestion(call.id, questionText, options)
+        const result =
+          answer.kind === "option"
+            ? `Q: ${questionText}\nA: ${answer.label}`
+            : answer.kind === "custom"
+              ? `Q: ${questionText}\nA (typed by the user): ${answer.text}`
+              : `Q: ${questionText}\nA: the user dismissed the question without answering`
+        store.updateToolPart(assistantId, call.id, { status: "ok", result, durationMs: performance.now() - startedAt })
+        return capResult(result)
+      } catch (err) {
+        if ((err as Error).name === "AbortError") throw err
+        const result = `error: ${(err as Error).message}`
+        store.updateToolPart(assistantId, call.id, { status: "error", result, durationMs: performance.now() - startedAt })
+        return result
+      }
+    }
     if (call.name === "task") {
       store.setStatus("tool")
       store.setStatusDetail("subagent")

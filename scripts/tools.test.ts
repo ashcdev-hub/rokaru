@@ -28,6 +28,8 @@ check("read_file paginates", paged.includes("lines 5-7 of 20") && paged.includes
 check("schemas: task tool present (build)", toolSchemas(true, false).some((t) => t.function.name === "task"))
 check("schemas: task tool present (plan)", toolSchemas(true, true).some((t) => t.function.name === "task"))
 check("schemas: bash hidden in plan", !toolSchemas(true, true).some((t) => t.function.name === "bash"))
+check("schemas: question offered in build", toolSchemas(true, false).some((t) => t.function.name === "question"))
+check("schemas: question offered in plan", toolSchemas(true, true).some((t) => t.function.name === "question"))
 
 // AGENTS.md auto-load
 const ws = mkdtempSync(join(tmpdir(), "rokaru-agents-"))

@@ -8,7 +8,15 @@ export interface PaletteAction {
   description: string
 }
 
-export function CommandPalette(props: { actions: PaletteAction[]; onPick: (index: number) => void }) {
+export function filterPaletteActions<T extends PaletteAction>(actions: T[], query: string): T[] {
+  const q = query.trim().toLowerCase()
+  if (q.length === 0) return actions
+  return actions.filter((action) =>
+    `${action.label.replace(/^\//, "")} ${action.description}`.toLowerCase().includes(q),
+  )
+}
+
+export function CommandPalette(props: { actions: PaletteAction[]; query: string; onPick: (index: number) => void }) {
   return (
     <box width="100%" height="100%" flexDirection="column" justifyContent="center" alignItems="center">
       <box
@@ -24,8 +32,11 @@ export function CommandPalette(props: { actions: PaletteAction[]; onPick: (index
         <text fg={getTheme().accent}>
           <b>commands</b>
         </text>
-        <text fg={getTheme().dim}>{""}</text>
-        <Show when={props.actions.length > 0} fallback={<text fg={getTheme().dim}>(nothing)</text>}>
+        <text>
+          <span {...sg(getTheme().text)}>{`> ${props.query}`}</span>
+          <span {...sg(getTheme().dim)}>▌</span>
+        </text>
+        <Show when={props.actions.length > 0} fallback={<text fg={getTheme().dim}>(no matches)</text>}>
           <For each={props.actions}>
             {(action, index) => (
               <text fg={paletteIndex() === index() ? getTheme().good : getTheme().dim}>
@@ -38,7 +49,7 @@ export function CommandPalette(props: { actions: PaletteAction[]; onPick: (index
           </For>
         </Show>
         <text fg={getTheme().dim}>{""}</text>
-        <text fg={getTheme().dim}>↑/↓ choose · enter run · esc close</text>
+        <text fg={getTheme().dim}>type to filter · ↑/↓ choose · enter run · esc close</text>
       </box>
     </box>
   )

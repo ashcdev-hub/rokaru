@@ -82,7 +82,7 @@ export const DEFAULT_SYSTEM_PROMPT = [
 export const DEFAULT_CONFIG: RokaruConfig = {
   baseURL: "http://127.0.0.1:8000/v1",
   systemPrompt: DEFAULT_SYSTEM_PROMPT,
-  inputHeight: 8,
+  inputHeight: 10,
   sampling: {
     temperature: 0.7,
     topP: 0.95,

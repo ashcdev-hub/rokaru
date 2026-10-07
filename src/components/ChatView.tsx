@@ -4,7 +4,9 @@ import { getTheme } from "../theme"
 import * as store from "../store"
 import { InputBox } from "./InputBox"
 import { MessageList } from "./MessageList"
-import { PermissionPrompt } from "./PermissionPrompt"
+import { PermissionBody } from "./PermissionPrompt"
+import { PromptPanel } from "./PromptPanel"
+import { QuestionPanel } from "./QuestionPanel"
 import { Sidebar } from "./Sidebar"
 import { Toast } from "./Toast"
 import { CommandMenu } from "./CommandMenu"
@@ -27,24 +29,45 @@ export function ChatView(props: {
               <text fg={getTheme().bad}>{`error: ${store.error()}`}</text>
             </box>
           </Show>
-          <Show when={store.permission()}>
-            {(pending) => <PermissionPrompt request={pending()} />}
+          <Show
+            when={store.permission()}
+            fallback={
+              <Show
+                when={!store.questionTyping() ? store.question() : undefined}
+                fallback={
+                  <>
+                    <Show when={store.pendingImages().length > 0}>
+                      <box flexDirection="row" flexShrink={0} paddingLeft={1}>
+                        <text fg={getTheme().accent}>
+                          {`📎 ${store.pendingImages().map((image) => image.name).join("  ")}  · send to attach`}
+                        </text>
+                      </box>
+                    </Show>
+                    <CommandMenu />
+                    <InputBox
+                      onSubmit={props.onSubmit}
+                      focused={!store.permission() && (!store.question() || store.questionTyping())}
+                      height={props.inputHeight}
+                      onReady={props.onReady}
+                      onContentChange={props.onContentChange}
+                    />
+                  </>
+                }
+              >
+                {(pending) => (
+                  <PromptPanel>
+                    <QuestionPanel request={pending()} />
+                  </PromptPanel>
+                )}
+              </Show>
+            }
+          >
+            {(pending) => (
+              <PromptPanel>
+                <PermissionBody request={pending()} />
+              </PromptPanel>
+            )}
           </Show>
-          <Show when={store.pendingImages().length > 0}>
-            <box flexDirection="row" flexShrink={0} paddingLeft={1}>
-              <text fg={getTheme().accent}>
-                {`📎 ${store.pendingImages().map((image) => image.name).join("  ")}  · send to attach`}
-              </text>
-            </box>
-          </Show>
-          <CommandMenu />
-          <InputBox
-            onSubmit={props.onSubmit}
-            focused={!store.permission()}
-            height={props.inputHeight}
-            onReady={props.onReady}
-            onContentChange={props.onContentChange}
-          />
           {/* Toast lives in the main pane so it never overlaps the sidebar */}
           <Toast />
         </box>

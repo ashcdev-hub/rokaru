@@ -98,14 +98,42 @@ export class McpClient {
     this.pending.clear()
   }
 
-  private request(method: string, params: unknown, timeoutMs = REQUEST_TIMEOUT_MS): Promise<any> {
+  private request(method: string, params: unknown, timeoutMs = REQUEST_TIMEOUT_MS, signal?: AbortSignal): Promise<any> {
     const id = this.nextId++
     return new Promise((resolve, reject) => {
+      const cleanup = () => {
+        if (signal) signal.removeEventListener("abort", onAbort)
+      }
+      const onAbort = () => {
+        const pending = this.pending.get(id)
+        if (!pending) return
+        this.pending.delete(id)
+        clearTimeout(pending.timer)
+        reject(new DOMException("Aborted", "AbortError"))
+      }
       const timer = setTimeout(() => {
         this.pending.delete(id)
+        cleanup()
         reject(new Error(`${this.serverName}: ${method} timed out`))
       }, timeoutMs)
-      this.pending.set(id, { resolve, reject, timer })
+      this.pending.set(id, {
+        resolve: (value) => {
+          cleanup()
+          resolve(value)
+        },
+        reject: (error) => {
+          cleanup()
+          reject(error)
+        },
+        timer,
+      })
+      if (signal) {
+        if (signal.aborted) {
+          onAbort()
+          return
+        }
+        signal.addEventListener("abort", onAbort, { once: true })
+      }
       this.write({ jsonrpc: "2.0", id, method, params })
     })
   }
@@ -125,7 +153,7 @@ export class McpClient {
   }
 
   async callTool(name: string, args: unknown, signal?: AbortSignal): Promise<string> {
-    const result = await this.request("tools/call", { name, arguments: args ?? {} }, CALL_TIMEOUT_MS)
+    const result = await this.request("tools/call", { name, arguments: args ?? {} }, CALL_TIMEOUT_MS, signal)
     const parts: string[] = []
     if (Array.isArray(result?.content)) {
       for (const item of result.content) {

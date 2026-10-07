@@ -1,8 +1,10 @@
 /** @jsxImportSource @opentui/solid */
-import { For, Show, createSignal, onCleanup, onMount } from "solid-js"
+import { For, Index, Show, createSignal, onCleanup, onMount } from "solid-js"
 import { useTerminalDimensions } from "@opentui/solid"
 import { getTheme, sg } from "../theme"
-import { markdownStyle } from "../markdown"
+import { Markdown } from "./Markdown"
+import { DiffView } from "./Code"
+import { FadeIn, Spinner } from "./anim"
 import { decorateAssistant } from "../highlight"
 import {
   expandTools,
@@ -83,9 +85,7 @@ function toolHeader(name: string, argsRaw: string): { lead: string; text: string
 function AssistantText(props: { text: string; streaming: boolean }) {
   return (
     <Show when={!props.streaming} fallback={<text fg={getTheme().body}>{props.text}</text>}>
-      <box flexDirection="column" width="100%">
-        <markdown content={decorateAssistant(props.text)} syntaxStyle={markdownStyle()} conceal={true} />
-      </box>
+      <Markdown text={decorateAssistant(props.text)} />
     </Show>
   )
 }
@@ -130,10 +130,11 @@ function ToolView(props: { message: UIMessage; part: Extract<Part, { kind: "tool
 
   const suffix = () => {
     const bits: string[] = []
-    if (part.status === "running") bits.push("…")
-    else if (part.status === "error") bits.push("failed")
+    if (part.status === "error") bits.push("failed")
     else if (part.status === "denied") bits.push("denied")
-    if (part.durationMs !== undefined && part.status !== "denied") bits.push(formatDuration(part.durationMs))
+    if (part.durationMs !== undefined && part.status !== "denied" && part.status !== "running") {
+      bits.push(formatDuration(part.durationMs))
+    }
     return bits.length > 0 ? `  ${bits.join(" · ")}` : ""
   }
 
@@ -149,11 +150,17 @@ function ToolView(props: { message: UIMessage; part: Extract<Part, { kind: "tool
       paddingRight={1}
       onMouseDown={() => toggleToolExpanded(props.message.id, part.id)}
     >
-      <text fg={header().colour}>
-        <span {...sg(header().colour)}>{`${header().lead} `}</span>
-        <span {...sg(getTheme().text)}>{header().text}</span>
-        <span {...sg(part.status === "error" ? getTheme().bad : getTheme().dim)}>{suffix()}</span>
-      </text>
+      <box flexDirection="row">
+        <Show
+          when={part.status === "running"}
+          fallback={<text fg={header().colour}>{`${header().lead}  `}</text>}
+        >
+          <Spinner fg={header().colour} />
+          <text fg={header().colour}>{"  "}</text>
+        </Show>
+        <text fg={getTheme().text}>{header().text}</text>
+        <text fg={part.status === "error" ? getTheme().bad : getTheme().dim}>{suffix()}</text>
+      </box>
       <Show
         when={part.diff && part.diff.length > 0}
         fallback={
@@ -164,13 +171,7 @@ function ToolView(props: { message: UIMessage; part: Extract<Part, { kind: "tool
           </Show>
         }
       >
-        <For each={part.diff}>
-          {(line) => (
-            <text fg={line.kind === "add" ? getTheme().good : line.kind === "del" ? getTheme().bad : getTheme().dim}>
-              {`${line.kind === "add" ? "+" : line.kind === "del" ? "-" : " "} ${line.text}`}
-            </text>
-          )}
-        </For>
+        <DiffView lines={part.diff!} />
       </Show>
     </box>
   )
@@ -215,46 +216,48 @@ function Separator() {
 
 function MessageView(props: { message: UIMessage; streaming: boolean; first: boolean }) {
   return (
-    <Show
-      when={props.message.role !== "info"}
-      fallback={
-        <box flexDirection="column" marginBottom={1} paddingLeft={1}>
-          <For each={props.message.parts}>
-            {(part) => <text fg={getTheme().dim}>{part.kind === "text" ? part.text : ""}</text>}
-          </For>
-        </box>
-      }
-    >
-      <Show when={props.message.role === "user" && !props.first}>
-        <box flexDirection="column" marginTop={1}>
-          <Separator />
+    <FadeIn>
+      <Show
+        when={props.message.role !== "info"}
+        fallback={
+          <box flexDirection="column" marginBottom={1} paddingLeft={1}>
+            <For each={props.message.parts}>
+              {(part) => <text fg={getTheme().dim}>{part.kind === "text" ? part.text : ""}</text>}
+            </For>
+          </box>
+        }
+      >
+        <Show when={props.message.role === "user" && !props.first}>
+          <box flexDirection="column" marginTop={1}>
+            <Separator />
+          </box>
+        </Show>
+        <box
+          flexDirection="column"
+          marginBottom={1}
+          backgroundColor={props.message.role === "user" ? getTheme().panelBg : undefined}
+          paddingLeft={props.message.role === "user" ? 1 : 0}
+          paddingRight={props.message.role === "user" ? 1 : 0}
+          paddingTop={props.message.role === "user" ? 1 : 0}
+          paddingBottom={props.message.role === "user" ? 1 : 0}
+        >
+          <text fg={props.message.role === "user" ? getTheme().accent : getTheme().blue}>
+            <b>{props.message.role === "user" ? "you" : "agent"}</b>
+          </text>
+          <box flexDirection="column" paddingLeft={1}>
+            <For each={props.message.parts}>
+              {(part) => <PartView message={props.message} part={part} streaming={props.streaming} />}
+            </For>
+            <Show when={props.message.images && props.message.images.length > 0}>
+              <text fg={getTheme().dim}>{`📎 ${props.message.images!.join("  ")}`}</text>
+            </Show>
+            <Show when={props.streaming}>
+              <StreamingCursor />
+            </Show>
+          </box>
         </box>
       </Show>
-      <box
-        flexDirection="column"
-        marginBottom={1}
-        backgroundColor={props.message.role === "user" ? getTheme().panelBg : undefined}
-        paddingLeft={props.message.role === "user" ? 1 : 0}
-        paddingRight={props.message.role === "user" ? 1 : 0}
-        paddingTop={props.message.role === "user" ? 1 : 0}
-        paddingBottom={props.message.role === "user" ? 1 : 0}
-      >
-        <text fg={props.message.role === "user" ? getTheme().accent : getTheme().blue}>
-          <b>{props.message.role === "user" ? "you" : "agent"}</b>
-        </text>
-        <box flexDirection="column" paddingLeft={1}>
-          <For each={props.message.parts}>
-            {(part) => <PartView message={props.message} part={part} streaming={props.streaming} />}
-          </For>
-          <Show when={props.message.images && props.message.images.length > 0}>
-            <text fg={getTheme().dim}>{`📎 ${props.message.images!.join("  ")}`}</text>
-          </Show>
-          <Show when={props.streaming}>
-            <StreamingCursor />
-          </Show>
-        </box>
-      </box>
-    </Show>
+    </FadeIn>
   )
 }
 
@@ -284,11 +287,11 @@ export function MessageList() {
       <Show when={messages().length === 0}>
         <EmptyState />
       </Show>
-      <For each={messages()}>
+      <Index each={messages()}>
         {(message, index) => (
-          <MessageView message={message} streaming={streamingId() === message.id} first={index() === 0} />
+          <MessageView message={message()} streaming={streamingId() === message().id} first={index === 0} />
         )}
-      </For>
+      </Index>
     </scrollbox>
   )
 }

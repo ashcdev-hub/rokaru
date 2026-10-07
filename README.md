@@ -20,6 +20,17 @@ cd ~/some/project
 rokaru
 ```
 
+`enter` send · `shift+enter` newline · `esc` abort · `tab` switch plan/build ·
+`ctrl+r` toggle all thinking · `ctrl+o` expand tool output · `ctrl+y` copy the
+last response · `ctrl+p` command palette · `ctrl+c` quit; `↑`/`↓` recall earlier
+prompts. Click a **Thought** line or a **tool panel** to expand it. Tool calls
+render as their own panels with a per-category icon, a duration and red/green
+diffs for edits; a full-width footer shows mode · context % · git branch ·
+`ctrl+p`. Replies render as markdown (aligned tables, blockquotes, highlighted
+code with line numbers) and fade in once; running tools show a spinner. The start
+screen has a drifting "matrix rain" tinted with the logo's colours. Selecting
+text copies it.
+
 ## Modes
 
 - **build** (default) — full editing and command running.
@@ -72,13 +83,23 @@ but not **reads**; don't point it at a box full of secrets.
 
 ## Tools
 
-`read_file`, `list_dir`, `glob`, `grep`, `view_image`, `todo_write` run
+`read_file`, `list_dir`, `glob`, `grep`, `view_image`, `task`, `todo_write` run
 automatically; `write_file`, `edit_file`, `bash` ask first. Choose **allow once**,
 **always allow** (stops asking for that tool for the rest of the session) or
 **deny** with `↑`/`↓` and `enter` (or `y`/`a`/`n`). The prompt previews what will
 run (a `$` block for `bash`, a diff for edits). For `bash`, "always allow"
 remembers just the leading command word (e.g. `git`). Tool output is scanned for
-credential shapes and masked before it reaches the model.
+credential shapes and masked before it reaches the model, and each result is
+capped (`tools.maxResultChars`). `tools.maxRounds` bounds tool rounds per turn
+(default 100; `0` = unlimited).
+
+`read_file` pages large files with `offset`/`limit`. `task` delegates a read-only
+investigation to a subagent with its own context.
+
+**Project context & checks.** A workspace `AGENTS.md` is loaded into the system
+prompt. After the model edits files, rokaru runs the project check once (a
+detected `typecheck` script or a local `tsc`, or `diagnostics.command`) and feeds
+failures back to be fixed. Set `diagnostics.enabled: false` to turn that off.
 
 ## MCP servers (optional)
 
@@ -162,6 +183,10 @@ exit, like everything else).
   "sampling": { "temperature": 0.7, "topP": 0.95, "topK": 20, "maxTokens": 4096 },
   "sandbox": { "extraWritePaths": [] },
   "web": { "enabled": false },
-  "mcp": { "servers": {} }
+  "mcp": { "servers": {} },
+  "tools": { "maxResultChars": 24000, "maxRounds": 100 },
+  "diagnostics": { "enabled": true, "command": "" },
+  "notify": true
 }
 ```
+

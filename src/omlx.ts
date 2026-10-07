@@ -126,7 +126,16 @@ export async function* streamChat(
     } catch {
       // ignore
     }
-    throw new Error(`oMLX chat returned HTTP ${res.status}${detail ? `: ${detail.slice(0, 300)}` : ""}`)
+    // Prefer the server's own message over a wall of JSON.
+    let message = detail
+    try {
+      const parsed = JSON.parse(detail)
+      message = parsed?.error?.message ?? parsed?.message ?? detail
+    } catch {
+      // not JSON
+    }
+    message = String(message).replace(/\s+/g, " ").trim().slice(0, 400)
+    throw new Error(`oMLX HTTP ${res.status}${message ? `: ${message}` : ""}`)
   }
 
   const reader = res.body.getReader()

@@ -18,36 +18,39 @@ export function ChatView(props: {
   onContentChange?: (value: string) => void
 }) {
   return (
-    <box flexDirection="row" width="100%" height="100%">
-      <box flexGrow={1} flexDirection="column" overflow="hidden">
-        <MessageList />
-        <Show when={store.error()}>
-          <box border borderStyle="rounded" borderColor={getTheme().bad} paddingLeft={1} flexShrink={0}>
-            <text fg={getTheme().bad}>{`error: ${store.error()}`}</text>
-          </box>
-        </Show>
-        <Show when={store.permission()}>
-          {(pending) => <PermissionPrompt request={pending()} />}
-        </Show>
-        <Show when={store.pendingImages().length > 0}>
-          <box flexDirection="row" flexShrink={0} paddingLeft={1}>
-            <text fg={getTheme().accent}>
-              {`📎 ${store.pendingImages().map((image) => image.name).join("  ")}  · send to attach`}
-            </text>
-          </box>
-        </Show>
-        <CommandMenu />
-        <InputBox
-          onSubmit={props.onSubmit}
-          focused={!store.permission()}
-          height={props.inputHeight}
-          onReady={props.onReady}
-          onContentChange={props.onContentChange}
-        />
-        <ProgressBar />
-        <Toast />
+    <box flexDirection="column" width="100%" height="100%">
+      <box flexDirection="row" flexGrow={1}>
+        <box flexGrow={1} flexDirection="column" overflow="hidden">
+          <MessageList />
+          <Show when={store.error()}>
+            <box border borderStyle="rounded" borderColor={getTheme().bad} paddingLeft={1} flexShrink={0}>
+              <text fg={getTheme().bad}>{`error: ${store.error()}`}</text>
+            </box>
+          </Show>
+          <Show when={store.permission()}>
+            {(pending) => <PermissionPrompt request={pending()} />}
+          </Show>
+          <Show when={store.pendingImages().length > 0}>
+            <box flexDirection="row" flexShrink={0} paddingLeft={1}>
+              <text fg={getTheme().accent}>
+                {`📎 ${store.pendingImages().map((image) => image.name).join("  ")}  · send to attach`}
+              </text>
+            </box>
+          </Show>
+          <CommandMenu />
+          <InputBox
+            onSubmit={props.onSubmit}
+            focused={!store.permission()}
+            height={props.inputHeight}
+            onReady={props.onReady}
+            onContentChange={props.onContentChange}
+          />
+          {/* Toast lives in the main pane so it never overlaps the sidebar */}
+          <Toast />
+        </box>
+        <Sidebar width={34} />
       </box>
-      <Sidebar width={34} />
+      <ProgressBar />
     </box>
   )
 }

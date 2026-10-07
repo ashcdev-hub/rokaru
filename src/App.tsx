@@ -24,6 +24,7 @@ import { SwitchModel } from "./components/SwitchModel"
 import { CommandPalette, type PaletteAction } from "./components/CommandPalette"
 import { McpPanel } from "./components/McpPanel"
 import { ThemePanel } from "./components/ThemePanel"
+import { StartupBackground } from "./components/StartupBackground"
 import type { InputHandle } from "./components/InputBox"
 
 type Phase = "loading" | "pick" | "ready" | "error"
@@ -43,8 +44,7 @@ export function App() {
   const sentHistory: string[] = []
   let historyIndex = 0
   let navigating = false
-  let suppressChange = false
-
+  let lastRecalled = ""
   const mcpToolNames = new Map<string, string[]>()
   const updateMcpStatus = (name: string, patch: Partial<store.McpServerInfo>) => {
     store.setMcpServers((prev) => prev.map((server) => (server.name === name ? { ...server, ...patch } : server)))
@@ -387,6 +387,7 @@ export function App() {
     sentHistory.push(text)
     historyIndex = sentHistory.length
     navigating = false
+    lastRecalled = ""
     controller = new AbortController()
     void runTurn({ ...options(controller.signal), attachments }, text).finally(() => {
       controller = undefined
@@ -415,15 +416,18 @@ export function App() {
     if (!inputHandle || sentHistory.length === 0) return
     historyIndex = Math.max(0, Math.min(sentHistory.length, historyIndex + delta))
     navigating = true
-    suppressChange = true
-    inputHandle.setText(historyIndex >= sentHistory.length ? "" : sentHistory[historyIndex])
-    suppressChange = false
+    const text = historyIndex >= sentHistory.length ? "" : sentHistory[historyIndex]
+    lastRecalled = text
+    inputHandle.setText(text)
   }
 
   const onContentChange = (value: string) => {
-    if (!suppressChange) {
+    // A programmatic recall sets `lastRecalled`; anything else is the user
+    // typing, which resets the history cursor.
+    if (value !== lastRecalled) {
       historyIndex = sentHistory.length
       navigating = false
+      lastRecalled = ""
     }
     store.setInputValue(value)
     store.setMenuIndex(0)
@@ -458,6 +462,25 @@ export function App() {
     if (key.ctrl && key.name === "o") {
       key.preventDefault()
       store.setExpandTools(!store.expandTools())
+      return
+    }
+
+    if (key.ctrl && key.name === "y") {
+      key.preventDefault()
+      const last = [...store.messages()].reverse().find((m) => m.role === "assistant")
+      const text = last
+        ? last.parts
+            .filter((p) => p.kind === "text")
+            .map((p) => (p as { text: string }).text)
+            .join("\n")
+            .trim()
+        : ""
+      if (text.length > 0) {
+        copyToClipboard(text)
+        store.showToast("copied last response")
+      } else {
+        store.showToast("nothing to copy", "info")
+      }
       return
     }
 
@@ -602,9 +625,7 @@ export function App() {
         if (key.name === "tab") {
           key.preventDefault()
           const chosen = matches[Math.min(store.menuIndex(), matches.length - 1)]
-          suppressChange = true
           inputHandle?.setText(`/${chosen.name} `)
-          suppressChange = false
           store.setMenuIndex(0)
           return
         }
@@ -686,23 +707,42 @@ export function Startup(props: {
   onSelect: (model: ModelInfo) => void
 }) {
   return (
-    <box width="100%" height="100%" flexDirection="column" justifyContent="center" alignItems="center">
-      <box flexDirection="column" alignItems="center">
-        <AsciiLogo />
-        <text fg={getTheme().dim}>private local harness for oMLX</text>
-        <text fg={getTheme().accent}>{`v${VERSION}`}</text>
-        <text fg={getTheme().text}>{""}</text>
-        <Show when={props.phase === "pick"}>
-          <ModelPicker models={props.models} onSelect={props.onSelect} />
-        </Show>
-        <Show when={props.phase === "loading"}>
-          <text fg={getTheme().dim}>contacting oMLX…</text>
-        </Show>
-        <Show when={props.phase === "error"}>
-          <text fg={getTheme().bad}>{props.message}</text>
-        </Show>
-        <text fg={getTheme().text}>{""}</text>
-        <text fg={getTheme().dim}>ctrl+c to quit</text>
+    <box width="100%" height="100%">
+      <StartupBackground />
+      <box
+        position="absolute"
+        top={0}
+        left={0}
+        width="100%"
+        height="100%"
+        flexDirection="column"
+        justifyContent="center"
+        alignItems="center"
+      >
+        <box
+          flexDirection="column"
+          alignItems="center"
+          paddingLeft={3}
+          paddingRight={3}
+          paddingTop={1}
+          paddingBottom={1}
+        >
+          <AsciiLogo />
+          <text fg={getTheme().dim}>private local harness for oMLX</text>
+          <text fg={getTheme().accent}>{`v${VERSION}`}</text>
+          <text fg={getTheme().text}>{""}</text>
+          <Show when={props.phase === "pick"}>
+            <ModelPicker models={props.models} onSelect={props.onSelect} />
+          </Show>
+          <Show when={props.phase === "loading"}>
+            <text fg={getTheme().dim}>contacting oMLX…</text>
+          </Show>
+          <Show when={props.phase === "error"}>
+            <text fg={getTheme().bad}>{props.message}</text>
+          </Show>
+          <text fg={getTheme().text}>{""}</text>
+          <text fg={getTheme().dim}>ctrl+c to quit</text>
+        </box>
       </box>
     </box>
   )

@@ -27,12 +27,16 @@ const ctx = {
   workspace: dir,
   extraWritePaths: [] as string[],
   signal: new AbortController().signal,
-  onDiff: (d: { kind: string; text: string }[]) => (captured = d),
+  onDiff: (d: { kind: string; text: string; oldLine?: number; newLine?: number }[]) => (captured = d),
 }
 await TOOL_MAP.get("edit_file")!.run({ path: "f.txt", old_string: "beta", new_string: "BETA" }, ctx)
 check(
   "edit_file emits a diff",
   captured.some((l) => l.kind === "del" && l.text === "beta") && captured.some((l) => l.kind === "add" && l.text === "BETA"),
+)
+check(
+  "diff carries line numbers",
+  captured.some((l) => l.kind === "del" && l.oldLine === 2) && captured.some((l) => l.kind === "add" && l.newLine === 2),
 )
 rmSync(dir, { recursive: true, force: true })
 

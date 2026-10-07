@@ -3,6 +3,65 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.5.0] - 2026-10-07
+
+### Added
+
+- **Animated start-screen background** — a dim, slow-drifting field of glyphs
+  fills the space around the logo/model picker on the terminal's own background
+  (no separate panel), kept clear of the centre so text stays readable; stops
+  once the session starts. The glyphs are **tinted with the logo's own gradient
+  palette**, which changes each launch.
+- **Session-screen animations** (timeline + easing): running tools show a braille
+  **spinner**, new messages **fade in**, and the sidebar context bar **animates**
+  to its new value.
+- **Full-width footer status line** — mode · context % · git branch · `ctrl+p`,
+  plus the activity meter and `esc interrupt` while working.
+- **Subagent `task` tool** — delegate a read-only investigation to a subagent
+  with its own context; it returns a concise answer.
+- **`AGENTS.md` auto-load** — a workspace `AGENTS.md` is injected into the system
+  prompt.
+- **Post-edit diagnostics** — after the model edits files, rokaru runs the
+  project check (a detected `typecheck` script or local `tsc`, or
+  `diagnostics.command`) once and feeds failures back for fixing.
+- **`read_file` pagination** via `offset`/`limit`.
+- **`ctrl+y`** copies the last agent response.
+- **Code-block syntax highlighting** and a **blockquote bar** (custom markdown
+  renderer replacing the library one).
+
+### Changed
+
+- Tool results are capped (`tools.maxResultChars`) and the agent caps tool rounds
+  per turn (`tools.maxRounds`).
+- **Readability pass on replies**: sections/paragraphs/list-blocks are now spaced
+  out, markdown **tables are rendered** (aligned columns) instead of raw pipes,
+  blockquotes get a bar, and inline `*italics*`/`**bold**` markers are stripped
+  and coloured.
+- **Line numbers** now show for code: fenced code blocks, `edit_file` diffs (old/
+  new gutters) and `write_file` previews.
+- The **footer** is a full-width two-row bar (separator + a filled status row),
+  and the sidebar **Todo** panel sits below **MCP**.
+
+### Fixed
+
+- Tool-round cap default raised from 12 to **100** (`tools.maxRounds`; `0` =
+  unlimited) — the low cap was cutting long tasks short.
+- The oMLX **prefill memory-guard** rejection is now treated as context
+  overflow: rokaru auto-compacts (keeping the current request) and retries,
+  instead of erroring out. HTTP errors now show the server's message rather than
+  a wall of JSON.
+- Context overflow now auto-compacts (preserving the current request) and retries.
+- MCP tool calls abort on `esc`.
+- Turns longer than 5s ring the terminal bell (`notify`).
+- Prompt history: `↑`/`↓` now cycle through **all** prior prompts (the textarea's
+  async content-change was resetting the history cursor after the first recall).
+- A tool panel turning **running** crashed rendering with
+  `TextNodeRenderable only accepts strings, …` — the spinner was a `<text>` nested
+  inside the header `<text>`. The header is now a row of sibling text nodes.
+- Replies **flickered while streaming**: the message list keyed rows by object
+  identity, so every token remounted the row and replayed its fade-in. Rows now
+  update in place, so the fade runs once per message.
+
 ## [0.4.0] - 2026-10-06
 
 ### Added

@@ -52,6 +52,7 @@ const checks: [string, boolean][] = [
   ["cache %", frame.includes("cache 84%")],
   ["elapsed FIELD", frame.includes("TIME") && frame.includes("4.2s")],
   ["git branch", frame.includes("⎇ main*")],
+  ["footer status", frame.includes("ctrl+p") && frame.includes("build")],
 ]
 const ok = checks.every(([, v]) => v)
 for (const [name, v] of checks) console.log(`${v ? "PASS" : "FAIL"}  ${name}`)

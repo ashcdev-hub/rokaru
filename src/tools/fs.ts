@@ -40,15 +40,38 @@ function readFileText(ctx: ToolContext, input: string): string {
 
 export const readFileTool: ToolDef = {
   name: "read_file",
-  description: "Read a UTF-8 text file. Paths are relative to the workspace unless absolute.",
+  description:
+    "Read a UTF-8 text file. Paths are relative to the workspace unless absolute. For large files, pass offset/limit (line numbers, 1-based) to page through.",
   destructive: false,
   parameters: {
     type: "object",
-    properties: { path: { type: "string", description: "File path to read" } },
+    properties: {
+      path: { type: "string", description: "File path to read" },
+      offset: { type: "number", description: "1-based line to start at (optional)" },
+      limit: { type: "number", description: "Number of lines to read (optional)" },
+    },
     required: ["path"],
   },
   async run(args, ctx) {
-    return readFileText(ctx, String(args?.path ?? ""))
+    const target = resolvePath(ctx, String(args?.path ?? ""))
+    if (isSensitivePath(target)) throw new Error(`refused: ${target} is in a protected location`)
+    const stat = statSync(target)
+    if (stat.isDirectory()) throw new Error(`${target} is a directory`)
+    const full = readFileSync(target, "utf8")
+    const offset = Number(args?.offset ?? 0)
+    const limit = Number(args?.limit ?? 0)
+    if (offset > 0 || limit > 0) {
+      const lines = full.split("\n")
+      const start = Math.max(0, offset > 0 ? offset - 1 : 0)
+      const end = limit > 0 ? start + limit : lines.length
+      const slice = lines.slice(start, end)
+      const body = slice.map((line, i) => `${start + i + 1}\t${line}`).join("\n")
+      return `lines ${start + 1}-${Math.min(end, lines.length)} of ${lines.length}:\n${body}`
+    }
+    if (full.length > MAX_READ_CHARS) {
+      return `${full.slice(0, MAX_READ_CHARS)}\n… (truncated ${full.length - MAX_READ_CHARS} chars; use offset/limit to page)`
+    }
+    return full
   },
 }
 

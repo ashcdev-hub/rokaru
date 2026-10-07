@@ -1,6 +1,9 @@
+import { spawn } from "node:child_process"
+import { existsSync, readFileSync } from "node:fs"
+import { join } from "node:path"
 import type { RokaruConfig } from "./config"
 import { streamChat, type ChatMessage, type ContentPart, type ToolCall, type Usage } from "./omlx"
-import { getTool, toolSchemas } from "./tools"
+import { getTool, toolSchemas, type ToolContext } from "./tools"
 import { redactSecrets } from "./redact"
 import { clearWebAllowlist } from "./web"
 import { clearSnapshots } from "./undo"
@@ -20,14 +23,31 @@ export function resetHistory(): void {
   clearSnapshots()
 }
 
-function systemPrompt(config: RokaruConfig, planMode: boolean): string {
+// AGENTS.md from the workspace, injected into the system prompt (cached).
+let projectNotesCache: { workspace: string; text: string } | undefined
+export function projectInstructions(workspace: string): string {
+  if (projectNotesCache?.workspace === workspace) return projectNotesCache.text
+  let text = ""
+  try {
+    const path = join(workspace, "AGENTS.md")
+    if (existsSync(path)) text = readFileSync(path, "utf8").slice(0, 6000).trim()
+  } catch {
+    // ignore
+  }
+  projectNotesCache = { workspace, text }
+  return text
+}
+
+function systemPrompt(config: RokaruConfig, planMode: boolean, workspace: string): string {
   const mode = planMode
     ? " You are in PLAN mode: you may only read and search - do not modify files or run commands. Produce a concrete, ordered plan and stop; the user will switch to build mode to execute it."
     : " You are in BUILD mode: you may edit files and run commands, asking permission as required."
   const web = config.web?.enabled
     ? " You can search the web read-only with web_search, then read a result with web_fetch. You cannot post or send data anywhere."
     : " You have no network access; do not attempt to reach any host."
-  return config.systemPrompt + mode + web
+  const notes = projectInstructions(workspace)
+  const project = notes.length > 0 ? `\n\nProject instructions (AGENTS.md):\n${notes}` : ""
+  return config.systemPrompt + mode + web + project
 }
 
 export interface Attachment {
@@ -93,7 +113,7 @@ async function streamOnce(
   assistantId: string,
 ): Promise<{ content: string; finishReason: string; firstTokenAt: number; hadTools: boolean }> {
   const messages: ChatMessage[] = [
-    { role: "system", content: systemPrompt(options.config, store.mode() === "plan") },
+    { role: "system", content: systemPrompt(options.config, store.mode() === "plan", options.workspace) },
     ...history,
   ]
   const startedAt = performance.now()
@@ -188,8 +208,130 @@ async function streamOnce(
 
 const toolCalls = new Map<number, { id: string; name: string; args: string }>()
 
+export function isContextOverflow(error: Error): boolean {
+  const m = (error.message || "").toLowerCase()
+  return /context.*(length|window|limit)|maximum context|too (long|many tokens)|input length|exceed.{0,20}context|context.{0,20}exceed|prefill memory guard|prefill would require|dynamic ceiling|memory guard/.test(
+    m,
+  )
+}
+
+async function runCommand(command: string, cwd: string, signal: AbortSignal): Promise<{ code: number; output: string }> {
+  return new Promise((resolve) => {
+    const child = spawn("/bin/zsh", ["-c", command], { cwd, env: process.env, signal })
+    const cap = 60_000
+    let out = ""
+    const timer = setTimeout(() => child.kill("SIGKILL"), 120_000)
+    child.stdout.on("data", (d) => {
+      if (out.length < cap) out += d.toString()
+    })
+    child.stderr.on("data", (d) => {
+      if (out.length < cap) out += d.toString()
+    })
+    child.on("error", () => {
+      clearTimeout(timer)
+      resolve({ code: -1, output: `error running: ${command}` })
+    })
+    child.on("close", (code) => {
+      clearTimeout(timer)
+      resolve({ code: code ?? -1, output: out.slice(0, cap) })
+    })
+  })
+}
+
+// The command run after edits to check the project. Configurable, else detected.
+function diagnosticsCommand(config: RokaruConfig, workspace: string): string {
+  const configured = config.diagnostics.command.trim()
+  if (configured.length > 0) return configured
+  try {
+    const pkgPath = join(workspace, "package.json")
+    if (existsSync(pkgPath)) {
+      const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { scripts?: Record<string, string> }
+      const scripts = pkg.scripts ?? {}
+      if (scripts.typecheck) return "bun run typecheck"
+      if (scripts["check-types"]) return "bun run check-types"
+    }
+  } catch {
+    // ignore
+  }
+  if (existsSync(join(workspace, "node_modules", ".bin", "tsc"))) return "./node_modules/.bin/tsc --noEmit"
+  return ""
+}
+
+// A read-only subagent: its own message history, no editing tools, returns text.
+async function runSubagent(options: TurnOptions, prompt: string): Promise<string> {
+  const messages: ChatMessage[] = [
+    {
+      role: "system",
+      content:
+        systemPrompt(options.config, true, options.workspace) +
+        " You are a subagent: gather the requested information with the read-only tools and return a concise answer. Never modify anything.",
+    },
+    { role: "user", content: prompt },
+  ]
+  const ctx: ToolContext = {
+    workspace: options.workspace,
+    extraWritePaths: options.config.sandbox.extraWritePaths,
+    signal: options.signal,
+    web: options.config.web,
+  }
+  const schemas = toolSchemas(options.config.web?.enabled === true, true).filter((s) => s.function.name !== "task")
+  for (let round = 0; round < 8; round++) {
+    let content = ""
+    const calls = new Map<number, { id: string; name: string; args: string }>()
+    for await (const ev of streamChat(
+      { baseURL: options.baseURL, apiKey: options.apiKey },
+      {
+        model: options.model,
+        messages,
+        tools: schemas,
+        temperature: options.config.sampling.temperature,
+        topP: options.config.sampling.topP,
+        topK: options.config.sampling.topK,
+        maxTokens: options.config.sampling.maxTokens,
+      },
+      options.signal,
+    )) {
+      if (ev.type === "content") content += ev.text
+      else if (ev.type === "toolCall") {
+        const entry = calls.get(ev.index) ?? { id: ev.id ?? `call_${ev.index}`, name: "", args: "" }
+        if (ev.id) entry.id = ev.id
+        if (ev.name) entry.name = ev.name
+        if (ev.argumentsDelta) entry.args += ev.argumentsDelta
+        calls.set(ev.index, entry)
+      }
+    }
+    const ordered = [...calls.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v)
+    if (ordered.length === 0) return content.trim() || "(subagent returned nothing)"
+    messages.push({
+      role: "assistant",
+      content: content || null,
+      tool_calls: ordered.map((c) => ({ id: c.id, type: "function", function: { name: c.name, arguments: c.args } })),
+    })
+    for (const call of ordered) {
+      const tool = getTool(call.name)
+      if (!tool || tool.destructive) {
+        messages.push({ role: "tool", tool_call_id: call.id, name: call.name, content: "(subagent is read-only)" })
+        continue
+      }
+      try {
+        messages.push({
+          role: "tool",
+          tool_call_id: call.id,
+          name: call.name,
+          content: redactSecrets(await tool.run(parseArgs(call.args), ctx)),
+        })
+      } catch (err) {
+        if ((err as Error).name === "AbortError") throw err
+        messages.push({ role: "tool", tool_call_id: call.id, name: call.name, content: `error: ${(err as Error).message}` })
+      }
+    }
+  }
+  return "(subagent stopped after too many rounds)"
+}
+
 export async function runTurn(options: TurnOptions, userText: string): Promise<void> {
   const { config } = options
+  const turnStart = performance.now()
   const attachments = options.attachments ?? []
   if (attachments.length > 0) {
     const parts: ContentPart[] = []
@@ -211,8 +353,31 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
     web: config.web,
   }
   const callImages = new Map<string, string[]>()
+  let modified = false
+  const capResult = (s: string) => {
+    const cap = config.tools.maxResultChars
+    return s.length > cap ? `${s.slice(0, cap)}\n… (truncated ${s.length - cap} chars)` : s
+  }
 
   const executeCall = async (assistantId: string, call: { id: string; name: string; args: string }): Promise<string> => {
+    if (call.name === "task") {
+      store.setStatus("tool")
+      store.setStatusDetail("subagent")
+      store.updateToolPart(assistantId, call.id, { status: "running" })
+      const startedAt = performance.now()
+      try {
+        const parsed = parseArgs(call.args)
+        const prompt = String(parsed?.prompt ?? parsed?.description ?? "").trim() || "Investigate and report concisely."
+        const result = capResult(redactSecrets(await runSubagent(options, prompt)))
+        store.updateToolPart(assistantId, call.id, { status: "ok", result, durationMs: performance.now() - startedAt })
+        return result
+      } catch (err) {
+        if ((err as Error).name === "AbortError") throw err
+        const result = `error: ${(err as Error).message}`
+        store.updateToolPart(assistantId, call.id, { status: "error", result, durationMs: performance.now() - startedAt })
+        return result
+      }
+    }
     const tool = getTool(call.name)
     if (!tool) {
       const result = `error: unknown tool '${call.name}'`
@@ -255,7 +420,8 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
           callImages.set(call.id, list)
         },
       }
-      const result = redactSecrets(await tool.run(parseArgs(call.args), callCtx))
+      const result = capResult(redactSecrets(await tool.run(parseArgs(call.args), callCtx)))
+      if (tool.name === "write_file" || tool.name === "edit_file") modified = true
       store.updateToolPart(assistantId, call.id, {
         status: "ok",
         result,
@@ -275,7 +441,18 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
   }
 
   try {
-    while (true) {
+    let round = 0
+    let compacted = false
+    let ranDiagnostics = false
+    // Bound total tool rounds so a confused model can't spin forever.
+    for (;;) {
+      round += 1
+      if (config.tools.maxRounds > 0 && round > config.tools.maxRounds) {
+        store.addInfoMessage(`stopped after ${config.tools.maxRounds} tool rounds.`)
+        store.setStatus("idle")
+        store.setStatusDetail("")
+        return
+      }
       store.setStatus("thinking")
       store.setStatusDetail("prefill")
       const assistantId = store.startAssistantMessage()
@@ -290,6 +467,12 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
         } catch (err) {
           const error = err as Error
           if (error.name === "AbortError") throw err
+          // Context full: compact once (keeping the current request) and retry.
+          if (isContextOverflow(error) && !compacted) {
+            compacted = true
+            store.setStatusDetail("compacting…")
+            if (await compactHistory(options, true)) continue
+          }
           const gotAnything = toolCalls.size > 0
           if (gotAnything || attempt >= 2) throw err
           attempt += 1
@@ -345,8 +528,36 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
       }
 
       if (result.finishReason === "stop") {
+        // Post-edit diagnostics: run the project check once and feed failures back.
+        if (!ranDiagnostics && modified && config.diagnostics.enabled && store.mode() === "build") {
+          const command = diagnosticsCommand(config, options.workspace)
+          if (command.length > 0) {
+            ranDiagnostics = true
+            modified = false
+            store.setStatus("tool")
+            store.setStatusDetail("checks")
+            const { code, output } = await runCommand(command, options.workspace, options.signal)
+            if (code !== 0) {
+              store.addInfoMessage(`diagnostics · ${command}\n${output.slice(0, 3000)}`)
+              history.push({
+                role: "user",
+                content: `The project check \`${command}\` failed:\n${output.slice(0, 4000)}\nFix the problems, then stop.`,
+              })
+              continue
+            }
+            store.showToast(`checks passed · ${command}`, "info")
+          }
+        }
         store.setStatus("idle")
         store.setStatusDetail("")
+        // Ring the terminal bell when a (long) turn finishes.
+        if (config.notify && performance.now() - turnStart > 5000) {
+          try {
+            process.stdout.write("\u0007")
+          } catch {
+            // ignore
+          }
+        }
         return
       }
     }
@@ -364,8 +575,11 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
 }
 
 // Replace the conversation with a model-written summary to reclaim context.
-export async function compactHistory(options: TurnOptions): Promise<boolean> {
+// When keepLastUser is set the most recent user message is preserved (used when
+// recovering from a context-overflow mid-turn).
+export async function compactHistory(options: TurnOptions, keepLastUser = false): Promise<boolean> {
   if (history.length === 0) return false
+  const lastUser = keepLastUser ? [...history].reverse().find((message) => message.role === "user") : undefined
   const transcript = history
     .map((message) => {
       const body =
@@ -417,6 +631,7 @@ export async function compactHistory(options: TurnOptions): Promise<boolean> {
 
   resetHistory()
   history.push({ role: "system", content: `Summary of earlier conversation:\n${summary}` })
+  if (lastUser) history.push({ role: "user", content: lastUser.content })
   store.addInfoMessage(`compacted conversation:\n${summary}`)
   return true
 }

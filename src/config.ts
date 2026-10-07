@@ -39,6 +39,19 @@ export interface McpConfig {
   servers: Record<string, McpServerConfig>
 }
 
+export interface ToolsConfig {
+  // Cap on characters of a single tool result sent to the model.
+  maxResultChars: number
+  // Max tool-call rounds per turn before the agent is stopped.
+  maxRounds: number
+}
+
+export interface DiagnosticsConfig {
+  enabled: boolean
+  // Command to run after edits; empty means auto-detect.
+  command: string
+}
+
 export interface RokaruConfig {
   baseURL: string
   systemPrompt: string
@@ -48,6 +61,10 @@ export interface RokaruConfig {
   sandbox: SandboxConfig
   web: WebConfig
   mcp: McpConfig
+  tools: ToolsConfig
+  diagnostics: DiagnosticsConfig
+  // Ring the terminal bell when a turn finishes.
+  notify: boolean
 }
 
 export const CONFIG_DIR = join(homedir(), ".config", "rokaru")
@@ -86,6 +103,16 @@ export const DEFAULT_CONFIG: RokaruConfig = {
   mcp: {
     servers: {},
   },
+  tools: {
+    maxResultChars: 24_000,
+    // 0 = no limit. Kept high by default so long tasks aren't cut short.
+    maxRounds: 100,
+  },
+  diagnostics: {
+    enabled: true,
+    command: "",
+  },
+  notify: true,
 }
 
 function ensureDir(path: string): void {
@@ -115,6 +142,9 @@ function mergeConfig(partial: Partial<RokaruConfig>): RokaruConfig {
     sandbox: { ...DEFAULT_CONFIG.sandbox, ...(partial.sandbox ?? {}) },
     web: { ...DEFAULT_CONFIG.web, ...(partial.web ?? {}) },
     mcp: { servers: { ...DEFAULT_CONFIG.mcp.servers, ...(partial.mcp?.servers ?? {}) } },
+    tools: { ...DEFAULT_CONFIG.tools, ...(partial.tools ?? {}) },
+    diagnostics: { ...DEFAULT_CONFIG.diagnostics, ...(partial.diagnostics ?? {}) },
+    notify: partial.notify ?? DEFAULT_CONFIG.notify,
   }
 }
 

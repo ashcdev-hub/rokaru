@@ -229,3 +229,22 @@ export function loadLogo(): LogoRow[] {
   }
   return cached
 }
+
+// A few representative colours sampled from the logo's gradient (left → right),
+// used to tint the start-screen animation so it matches the logo each load.
+export function logoPalette(): string[] {
+  const fgs: string[] = []
+  for (const row of loadLogo()) {
+    for (const span of row) {
+      if (span.fg && span.text.trim().length > 0) fgs.push(span.fg)
+    }
+  }
+  const uniq: string[] = []
+  for (const colour of fgs) {
+    if (uniq[uniq.length - 1] !== colour) uniq.push(colour)
+  }
+  if (uniq.length === 0) return []
+  const pick = (t: number) => uniq[Math.max(0, Math.min(uniq.length - 1, Math.round(t * (uniq.length - 1))))]
+  return [pick(0), pick(0.5), pick(1)]
+}
+

@@ -1,5 +1,6 @@
 /** @jsxImportSource @opentui/solid */
-import { For, Show } from "solid-js"
+import { For, Show, createEffect, createSignal, untrack } from "solid-js"
+import { useTimeline } from "@opentui/solid"
 import { getTheme, sg } from "../theme"
 import { contextPercent, gitBranch, mcpServers, metrics, modelLimit, promptTokens, todos } from "../store"
 import { formatCompact, formatInt, formatRate, formatSeconds } from "../metrics"
@@ -47,20 +48,32 @@ export function Sidebar(props: { width?: number }) {
     return t >= 25 ? getTheme().good : t >= 12 ? getTheme().warn : getTheme().bad
   }
 
-  const segments = () => {
+  // Animate the context bar fill smoothly towards the new value.
+  const targetFill = () => {
     const limit = modelLimit() || 1
+    return Math.min(1, Math.max(0, promptTokens() / limit))
+  }
+  const [shownFill, setShownFill] = createSignal(targetFill())
+  const timeline = useTimeline()
+  createEffect(() => {
+    const target = targetFill()
+    timeline.add(
+      { value: untrack(shownFill) },
+      {
+        value: target,
+        duration: 400,
+        ease: "outQuad",
+        onUpdate: (anim: any) => setShownFill(anim.targets[0].value),
+      },
+    )
+  })
+
+  const segments = () => {
+    const total = Math.round(Math.min(1, shownFill()) * BAR_WIDTH)
     const prompt = promptTokens()
-    const cached = Math.min(metrics().cachedTokens, prompt)
-    const cachedN = Math.round((cached / limit) * BAR_WIDTH)
-    const newN = Math.round(((prompt - cached) / limit) * BAR_WIDTH)
-    const total = Math.min(BAR_WIDTH, cachedN + newN)
-    const cachedClamped = Math.min(cachedN, total)
-    const newClamped = Math.max(0, total - cachedClamped)
-    return {
-      cached: cachedClamped,
-      fresh: newClamped,
-      rest: Math.max(0, BAR_WIDTH - total),
-    }
+    const cachedFrac = prompt > 0 ? Math.min(1, metrics().cachedTokens / prompt) : 0
+    const cachedN = Math.round(total * cachedFrac)
+    return { cached: cachedN, fresh: Math.max(0, total - cachedN), rest: Math.max(0, BAR_WIDTH - total) }
   }
 
   const cacheHit = () => {
@@ -97,20 +110,6 @@ export function Sidebar(props: { width?: number }) {
       </Show>
 
       <box flexDirection="column" marginTop={1}>
-        <Show when={todos().length > 0}>
-          <Panel title="Todo">
-            <For each={todos()}>
-              {(todo) => (
-                <text
-                  fg={todo.status === "completed" ? getTheme().dim : todo.status === "in_progress" ? getTheme().accent : getTheme().text}
-                >
-                  {`${todo.status === "completed" ? "[✓]" : todo.status === "in_progress" ? "[•]" : "[ ]"} ${todo.content}`}
-                </text>
-              )}
-            </For>
-          </Panel>
-        </Show>
-
         <Panel title="Session Context">
           <text>
             <span {...sg(getTheme().blue)}>{"█".repeat(segments().cached)}</span>
@@ -155,6 +154,20 @@ export function Sidebar(props: { width?: number }) {
                           ? "…"
                           : "○"
                   } ${server.name}${server.status === "connected" ? ` ${server.tools}` : ""}`}
+                </text>
+              )}
+            </For>
+          </Panel>
+        </Show>
+
+        <Show when={todos().length > 0}>
+          <Panel title="Todo">
+            <For each={todos()}>
+              {(todo) => (
+                <text
+                  fg={todo.status === "completed" ? getTheme().dim : todo.status === "in_progress" ? getTheme().accent : getTheme().text}
+                >
+                  {`${todo.status === "completed" ? "[✓]" : todo.status === "in_progress" ? "[•]" : "[ ]"} ${todo.content}`}
                 </text>
               )}
             </For>

@@ -3,6 +3,15 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.7.2] - 2026-10-07
+
+### Added
+
+- **`/purge-cache` command.** Deletes oMLX session KV-cache shards, duplicated
+  sidecars and per-session snapshots (`~/.omlx/cache`). Refuses while
+  `omlx-server` is running and never touches models, settings, logs, usage
+  stats or vision features.
+
 ## [0.7.1] - 2026-10-07
 
 ### Changed

@@ -44,6 +44,8 @@ filter, `enter` runs the action):
 - `/clear`, `/new` — start over.
 - `/help` — list commands.
 - `/mcp` — enable/disable MCP servers (interactive panel).
+- `/purge-cache` — delete oMLX session KV-cache (only while the oMLX server is
+  stopped; models, settings, logs and usage stats are never touched).
 - `/themes` — switch colour theme (alias `/theme`). See below.
 - `/exit` — quit (the alias `/quit` resolves to it).
 

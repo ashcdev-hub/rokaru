@@ -4,6 +4,7 @@ import { useKeyboard, useRenderer, useSelectionHandler } from "@opentui/solid"
 import { runTurn, compactHistory, resetHistory, type TurnOptions } from "./agent"
 import { clearProxyEnv } from "./guard"
 import { installLifecycle, secureExit } from "./lifecycle"
+import { isOmlxServerRunning, purgeOmlxSessionCache } from "./omlxCache"
 import { listModels, type ModelInfo } from "./omlx"
 import { loadConfig, resolveApiKey } from "./config"
 import { copyToClipboard } from "./clipboard"
@@ -123,6 +124,7 @@ export function App() {
         "  /new            start a new conversation",
         "  /help           show this list",
         "  /mcp            list connected MCP servers",
+        "  /purge-cache    delete oMLX session KV-cache (server must be stopped)",
         "  /themes         switch colour theme",
         "  /exit           quit (/quit works too)",
         "",
@@ -201,6 +203,26 @@ export function App() {
       }
       case "undo": {
         store.showToast(undoLast() ?? "nothing to undo")
+        return
+      }
+      case "purge-cache": {
+        if (isOmlxServerRunning()) {
+          store.addInfoMessage(
+            "purge-cache refused: omlx-server is running.\nStop the oMLX server first, then run /purge-cache again. Models, settings, logs and usage stats are never touched.",
+          )
+          return
+        }
+        const result = purgeOmlxSessionCache()
+        if (result.refused) {
+          store.addInfoMessage("purge-cache refused: could not confirm omlx-server is stopped.")
+          return
+        }
+        const mb = (result.freedBytes / 1024 / 1024).toFixed(1)
+        store.addInfoMessage(
+          result.removed.length === 0
+            ? "purge-cache: nothing to remove."
+            : `purge-cache: removed ${result.removed.length} directorie(s), freed ${mb} MB of session KV-cache.\noMLX rebuilds it as needed; models, settings, logs and usage stats were untouched.`,
+        )
         return
       }
       case "exit":

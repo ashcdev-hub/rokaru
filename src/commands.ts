@@ -14,6 +14,7 @@ export const COMMANDS: CommandSpec[] = [
   { name: "clear", description: "clear the conversation" },
   { name: "new", description: "start a new conversation" },
   { name: "mcp", description: "list connected MCP servers" },
+  { name: "purge-cache", description: "delete oMLX session KV-cache (server must be stopped)" },
   { name: "themes", description: "switch colour theme" },
   { name: "help", description: "list commands" },
   { name: "exit", description: "quit rokaru (wipes the session)" },

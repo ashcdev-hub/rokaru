@@ -10,12 +10,13 @@ import {
   expandTools,
   messages,
   status,
+  streamBuffer,
   thinkingVisible,
   todos,
   toggleThinking,
   toggleToolExpanded,
 } from "../store"
-import type { Part, UIMessage } from "../store"
+import type { Part, StreamKind, UIMessage } from "../store"
 
 const COLLAPSE_LINES = 10
 
@@ -208,6 +209,13 @@ function PartView(props: { message: UIMessage; part: Part; streaming: boolean })
   return <ToolView message={props.message} part={part} />
 }
 
+function StreamingPart(props: { message: UIMessage; kind: StreamKind; text: string }) {
+  if (props.kind === "text") {
+    return <AssistantText text={props.text} streaming={true} />
+  }
+  return <ThoughtView message={props.message} text={props.text} />
+}
+
 function Separator() {
   const dims = useTerminalDimensions()
   const width = () => Math.max(10, (dims()?.width ?? 80) - 34 - 4)
@@ -248,6 +256,9 @@ function MessageView(props: { message: UIMessage; streaming: boolean; first: boo
             <For each={props.message.parts}>
               {(part) => <PartView message={props.message} part={part} streaming={props.streaming} />}
             </For>
+            <Show when={streamBuffer()?.messageId === props.message.id ? streamBuffer() : undefined}>
+              {(buffer) => <StreamingPart message={props.message} kind={buffer().kind} text={buffer().text} />}
+            </Show>
             <Show when={props.message.images && props.message.images.length > 0}>
               <text fg={getTheme().dim}>{`📎 ${props.message.images!.join("  ")}`}</text>
             </Show>

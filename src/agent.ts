@@ -133,11 +133,11 @@ async function streamOnce(
     if (!force && now - lastFlush < 60) return
     lastFlush = now
     if (content.length > flushedContent) {
-      store.appendText(assistantId, "text", content.slice(flushedContent))
+      store.appendStream(assistantId, "text", content.slice(flushedContent))
       flushedContent = content.length
     }
     if (reasoning.length > flushedReasoning) {
-      store.appendText(assistantId, "reasoning", reasoning.slice(flushedReasoning))
+      store.appendStream(assistantId, "reasoning", reasoning.slice(flushedReasoning))
       flushedReasoning = reasoning.length
     }
   }
@@ -186,6 +186,7 @@ async function streamOnce(
       if (event.id) entry.id = event.id
       if (event.name) {
         entry.name = event.name
+        store.commitStream()
         store.addToolPart(assistantId, entry.id, entry.name, "")
       }
       if (event.argumentsDelta) {
@@ -200,6 +201,7 @@ async function streamOnce(
     }
   }
   flush(true)
+  store.commitStream()
   if (firstReasoningAt && !firstContentAt) {
     store.setMessageThinking(assistantId, (performance.now() - firstReasoningAt) / 1000)
   }
@@ -563,6 +565,7 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
     }
   } catch (err) {
     const error = err as Error
+    store.commitStream()
     if (error.name === "AbortError") {
       store.setStatus("idle")
       store.setStatusDetail("aborted")

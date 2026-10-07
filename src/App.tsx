@@ -468,13 +468,15 @@ export function App() {
     if (key.ctrl && key.name === "y") {
       key.preventDefault()
       const last = [...store.messages()].reverse().find((m) => m.role === "assistant")
-      const text = last
+      const committed = last
         ? last.parts
             .filter((p) => p.kind === "text")
             .map((p) => (p as { text: string }).text)
             .join("\n")
-            .trim()
         : ""
+      const buffer = store.streamBuffer()
+      const tail = buffer && last && buffer.messageId === last.id && buffer.kind === "text" ? buffer.text : ""
+      const text = `${committed}${tail}`.trim()
       if (text.length > 0) {
         copyToClipboard(text)
         store.showToast("copied last response")

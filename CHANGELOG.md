@@ -3,6 +3,17 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.6.0] - 2026-10-07
+
+### Changed
+
+- **Smoother streaming.** Incoming tokens now collect in a small live buffer and
+  are folded into the transcript only at segment boundaries (end of an answer, a
+  tool call, or end of turn), instead of rebuilding the whole message list on
+  every flush. Long conversations stay light and replies no longer redraw from
+  scratch while they stream. A reply cut short with `esc` still commits the text
+  received so far, and `ctrl+y` copies the in-progress tail.
+
 ## [0.5.0] - 2026-10-07
 
 ### Added

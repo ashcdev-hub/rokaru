@@ -27,6 +27,14 @@ export interface UIMessage {
   thinkingExpanded?: boolean
 }
 
+export type StreamKind = "text" | "reasoning"
+
+export interface StreamBuffer {
+  messageId: string
+  kind: StreamKind
+  text: string
+}
+
 export type Status = "idle" | "thinking" | "streaming" | "tool" | "permission" | "error"
 
 let seq = 0
@@ -36,6 +44,7 @@ export function nextId(prefix: string): string {
 }
 
 export const [messages, setMessages] = createSignal<UIMessage[]>([])
+export const [streamBuffer, setStreamBuffer] = createSignal<StreamBuffer | undefined>(undefined)
 export const [status, setStatus] = createSignal<Status>("idle")
 export const [statusDetail, setStatusDetail] = createSignal("")
 export const [metrics, setMetrics] = createSignal<TurnMetrics>(EMPTY_METRICS)
@@ -165,6 +174,25 @@ export function appendText(id: string, kind: "text" | "reasoning", text: string)
   })
 }
 
+// Streaming tokens land in a small buffer instead of rebuilding the transcript
+// on every flush. It is folded into the message parts at segment boundaries.
+export function appendStream(messageId: string, kind: StreamKind, text: string): void {
+  const buffer = streamBuffer()
+  if (buffer && buffer.messageId === messageId && buffer.kind === kind) {
+    setStreamBuffer({ ...buffer, text: buffer.text + text })
+    return
+  }
+  commitStream()
+  setStreamBuffer({ messageId, kind, text })
+}
+
+export function commitStream(): void {
+  const buffer = streamBuffer()
+  if (!buffer) return
+  setStreamBuffer(undefined)
+  if (buffer.text.length > 0) appendText(buffer.messageId, buffer.kind, buffer.text)
+}
+
 export function addToolPart(id: string, toolId: string, name: string, args: string): void {
   patchMessage(id, (m) => ({
     ...m,
@@ -252,6 +280,7 @@ export function resetSession(): void {
     }
   }
   setMessages([])
+  setStreamBuffer(undefined)
   setMetrics(EMPTY_METRICS)
   setContextPercent(0)
   setPromptTokens(0)

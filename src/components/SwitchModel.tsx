@@ -2,6 +2,7 @@
 import { createSignal, onMount, Show } from "solid-js"
 import { getTheme } from "../theme"
 import { listModels, type ModelInfo } from "../omlx"
+import { friendlyError } from "../errors"
 import { formatCompact } from "../metrics"
 import * as store from "../store"
 
@@ -23,7 +24,7 @@ export function SwitchModel(props: {
         }
       } catch (err) {
         // Keep the previously known list; just note we couldn't refresh.
-        setError(`could not refresh from oMLX: ${(err as Error).message}`)
+        setError(friendlyError(err, { baseURL: props.baseURL }))
       }
     })()
   })

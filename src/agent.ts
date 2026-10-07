@@ -2,6 +2,7 @@ import { spawn } from "node:child_process"
 import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { resolveSampling, type RokaruConfig } from "./config"
+import { friendlyError } from "./errors"
 import { streamChat, type ChatMessage, type ContentPart, type ToolCall, type Usage } from "./omlx"
 import { getTool, toolSchemas, type ToolContext } from "./tools"
 import { redactSecrets } from "./redact"
@@ -622,7 +623,7 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
     }
     store.setStatus("error")
     store.setStatusDetail("")
-    store.setError(error.message)
+    store.setError(friendlyError(error, { baseURL: options.baseURL, model: options.model }))
   }
 }
 
@@ -671,8 +672,8 @@ export async function compactHistory(options: TurnOptions, keepLastUser = false)
     )) {
       if (event.type === "content") summary += event.text
     }
-  } catch {
-    store.showToast("compact failed", "error")
+  } catch (err) {
+    store.showToast(friendlyError(err, { baseURL: options.baseURL, model: options.model }), "error")
     return false
   }
 

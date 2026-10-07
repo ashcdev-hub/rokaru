@@ -3,6 +3,14 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.7.12] - 2026-10-07
+
+### Changed
+
+- **Friendlier errors.** Connection failures, a missing model, a rejected API
+  key, timeouts and oversized prompts now show a short, actionable message
+  instead of a raw oMLX error.
+
 ## [0.7.11] - 2026-10-07
 
 ### Changed

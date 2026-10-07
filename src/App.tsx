@@ -19,6 +19,7 @@ import { copyToClipboard } from "./clipboard"
 import { COMMANDS, matchCommands, resolveCommandName } from "./commands"
 import { imageDataUrl } from "./image"
 import { applyMention, mentionMatches } from "./fileMentions"
+import { friendlyError } from "./errors"
 import { listSnapshots, redoLast, undoLast } from "./undo"
 import { connectServer, disconnectServer } from "./mcp"
 import { registerDynamicTools, unregisterDynamicTools } from "./tools"
@@ -85,10 +86,7 @@ export function App() {
         store.setModels(models)
         setPhase("pick")
       } catch (err) {
-        setLoadError(
-          `Cannot reach oMLX at ${config.baseURL}: ${(err as Error).message}\n` +
-            "Start oMLX yourself, then relaunch rokaru.",
-        )
+        setLoadError(`${friendlyError(err, { baseURL: config.baseURL })}\nStart oMLX yourself, then relaunch rokaru.`)
         setPhase("error")
       }
     })()
@@ -186,7 +184,10 @@ export function App() {
       await sendCanaryProbe({ baseURL: config.baseURL, apiKey: resolveApiKey() }, model, canary, probe.signal)
     } catch (err) {
       store.addInfoMessage(
-        `privacy-check: could not complete the probe request — ${(err as Error).message}\nNo oMLX traffic to test, so no scan was run.`,
+        `privacy-check: could not complete the probe request: ${friendlyError(err, {
+          baseURL: config.baseURL,
+          model,
+        })}\nNo oMLX traffic to test, so no scan was run.`,
       )
       return
     } finally {

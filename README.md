@@ -33,15 +33,31 @@ long-term storage.
 **Requirements:** macOS on Apple Silicon, [Bun](https://bun.sh), and an
 [oMLX](https://github.com/jundot/omlx) server already running with a model loaded.
 
+### Let your agent install it
+
+Paste this into your coding agent (Claude Code, opencode, Cursor, …):
+
+```text
+Install rokaru from https://github.com/ashcdev-hub/rokaru.git:
+- clone it to ~/dev/rokaru
+- symlink ~/dev/rokaru/bin/rokaru into a directory on my PATH (e.g. /usr/local/bin)
+- check that Bun and an oMLX server (with a model loaded) are available
+- run `rokaru` once to confirm it launches
+```
+
+### Or install it manually
+
 ```sh
 git clone https://github.com/ashcdev-hub/rokaru.git ~/dev/rokaru
 ln -sfn ~/dev/rokaru/bin/rokaru /usr/local/bin/rokaru
+```
 
+Then run it from any project directory (that directory becomes the workspace):
+
+```sh
 cd ~/some/project
 rokaru
 ```
-
-rokaru uses your current working directory as the workspace.
 
 ## Modes
 

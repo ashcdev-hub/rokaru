@@ -3,6 +3,13 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.7.7] - 2026-10-07
+
+### Changed
+
+- README: quick start offers an "let your agent install it" prompt alongside the
+  manual steps.
+
 ## [0.7.6] - 2026-10-07
 
 ### Fixed

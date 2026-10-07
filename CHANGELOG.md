@@ -3,6 +3,14 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.7.4] - 2026-10-07
+
+### Changed
+
+- **README overhaul.** Leads with what rokaru is and why, adds badges, turns the
+  command list into a table, and moves dense tooling/config detail into
+  collapsible sections. Themes trimmed to a subsection. No behaviour changes.
+
 ## [0.7.3] - 2026-10-07
 
 ### Added

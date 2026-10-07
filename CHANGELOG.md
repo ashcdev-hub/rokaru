@@ -3,6 +3,14 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.7.9] - 2026-10-07
+
+### Fixed
+
+- **Start screen rain overlap.** The matrix rain no longer draws over the logo
+  or the model list when several models are present. Its clear area now tracks
+  the content size (which grows with the model picker) instead of a fixed band.
+
 ## [0.7.8] - 2026-10-07
 
 ### Added

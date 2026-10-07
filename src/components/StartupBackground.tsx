@@ -3,6 +3,7 @@ import { For, createSignal, onCleanup, onMount } from "solid-js"
 import { useTerminalDimensions } from "@opentui/solid"
 import { getTheme } from "../theme"
 import { logoPalette } from "../ascii"
+import { isClearedByCentre } from "../startupLayout"
 
 // Single-width glyphs so column alignment is preserved.
 const GLYPHS = "01<>|/\\+=*:-·•".split("")
@@ -41,7 +42,12 @@ function fadeColour(palette: string[], distance: number): string {
 // Digital "matrix rain": columns of glyphs falling with a fading trail. Rendered
 // as a fixed pool of renderables (created once) so the content layered on top
 // stays above it; the rain shows through the gaps in the logo.
-export function StartupBackground() {
+//
+// `clearRows`/`clearCols` are the size of the centred content block. The rain is
+// suppressed in a matching rectangle so it never draws over the logo or the
+// model list (the select renderable doesn't reliably draw above the animation),
+// and the clearance follows the content as the model list grows.
+export function StartupBackground(props: { clearRows?: number; clearCols?: number } = {}) {
   const dimensions = useTerminalDimensions()
   const width = () => dimensions()?.width ?? 80
   const height = () => dimensions()?.height ?? 24
@@ -55,12 +61,10 @@ export function StartupBackground() {
   const [drops, setDrops] = createSignal<Drop[]>(ids.map(() => makeDrop(width(), height(), true)))
 
   // Keep the rain clear of the centred content so the model list stays readable
-  // (the select renderable doesn't reliably draw above animated overlays).
-  const inCentre = (x: number, y: number): boolean => {
-    const w = width()
-    const h = height()
-    return Math.abs(x - w / 2) < 36 && Math.abs(y - h / 2) < 12
-  }
+  // (the select renderable doesn't reliably draw above animated overlays). The
+  // half-extents track the content size with a small margin.
+  const inCentre = (x: number, y: number): boolean =>
+    isClearedByCentre(x, y, width(), height(), props.clearRows ?? 24, props.clearCols ?? 72)
 
   onMount(() => {
     let current = drops()

@@ -29,6 +29,8 @@ import { VERSION } from "./version"
 import * as store from "./store"
 import { ModelPicker } from "./components/ModelPicker"
 import { AsciiLogo } from "./components/AsciiLogo"
+import { loadLogo } from "./ascii"
+import { startupContentCols, startupContentRows } from "./startupLayout"
 import { ChatView } from "./components/ChatView"
 import { SwitchModel } from "./components/SwitchModel"
 import { CommandPalette, filterPaletteActions, type PaletteAction } from "./components/CommandPalette"
@@ -890,9 +892,15 @@ export function Startup(props: {
   models: ModelInfo[]
   onSelect: (model: ModelInfo) => void
 }) {
+  // Size the rain's clear rectangle to the centred content so it can't overlap
+  // the logo or the model list as the list grows.
+  const logo = loadLogo()
+  const logoWidth = Math.max(0, ...logo.map((row) => row.reduce((sum, span) => sum + span.text.length, 0)))
+  const contentRows = () => startupContentRows(props.models.length, logo.length, props.phase === "pick")
+  const contentCols = () => startupContentCols(logoWidth)
   return (
     <box width="100%" height="100%">
-      <StartupBackground />
+      <StartupBackground clearRows={contentRows()} clearCols={contentCols()} />
       <box
         position="absolute"
         top={0}

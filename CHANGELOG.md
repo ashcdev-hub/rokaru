@@ -3,6 +3,12 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.7.5] - 2026-10-07
+
+### Changed
+
+- README: removed em dashes for cleaner rendering.
+
 ## [0.7.4] - 2026-10-07
 
 ### Changed

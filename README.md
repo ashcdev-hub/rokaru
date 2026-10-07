@@ -11,7 +11,7 @@
   <img alt="license" src="https://img.shields.io/badge/license-MIT-3b82f6?style=flat-square">
 </p>
 
-rokaru is a terminal UI that drives a local model — served by **oMLX** — as a
+rokaru is a terminal UI that turns a local model served by **oMLX** into a
 coding agent inside your project directory. It reads and edits files, runs
 commands and plans work, while keeping everything on your machine and out of
 long-term storage.
@@ -48,7 +48,7 @@ rokaru uses your current working directory as the workspace.
 | Mode | What the model may do |
 | --- | --- |
 | **build** (default) | Read, search, edit files and run commands. |
-| **plan** | Read-only — writing and exec tools aren't even offered. |
+| **plan** | Read-only; writing and exec tools aren't even offered. |
 
 Switch with `/plan` and `/build`, or the **Tab** key.
 
@@ -91,7 +91,7 @@ A prompt sent while the model is working is queued and sent when it's free.
   are disabled.
 
 Caveats: your prompts still pass through oMLX, which keeps its own KV cache and
-usage DB — rokaru doesn't touch those. Run **`/privacy-check`** to confirm what
+usage DB; rokaru doesn't touch those. Run **`/privacy-check`** to confirm what
 oMLX actually left on disk. And the sandbox blocks network and writes, but not
 **reads**; don't point it at a box full of secrets.
 
@@ -100,8 +100,8 @@ oMLX actually left on disk. And the sandbox blocks network and writes, but not
 ### Tools
 
 `read_file`, `list_dir`, `glob`, `grep`, `view_image`, `task`, `todo_write` and
-`question` run automatically; `write_file`, `edit_file` and `bash` ask first —
-choose **allow once**, **always allow** (for the rest of the session) or **deny**
+`question` run automatically; `write_file`, `edit_file` and `bash` ask first.
+Choose **allow once**, **always allow** (for the rest of the session) or **deny**
 with `↑`/`↓` and `enter` (or `y`/`a`/`n`). The prompt previews what will run (a
 `$` block for `bash`, a diff for edits), and tool output is scanned for credential
 shapes and masked before it reaches the model.
@@ -134,7 +134,7 @@ servers aren't supported. Servers start **disabled on every launch** and are
 opt-in per session, so a fresh start stays fast with no extra tool schemas in the
 prompt.
 
-Run **`/mcp`** for an interactive panel — `↑`/`↓` to move, `enter` to toggle,
+Run **`/mcp`** for an interactive panel: `↑`/`↓` to move, `enter` to toggle,
 `esc` to close. Each server's status (connected / disabled / error, with tool
 count) shows there and in the sidebar **MCP** panel. Read-only tools (MCP
 `readOnlyHint`) run automatically; everything else asks first. Toggling is
@@ -158,8 +158,8 @@ session-only, and servers shut down when rokaru exits.
 
 ### Web access (optional, read-only)
 
-Off by default. Enable it to give the model two tools — `web_search` and
-`web_fetch` — built to only ever **read**:
+Off by default. Enable it to give the model two tools, `web_search` and
+`web_fetch`, built to only ever **read**:
 
 - **No writes.** Only `GET`, plus a `POST` of the query to your search engine.
   The model can never POST data to an arbitrary host.
@@ -196,8 +196,8 @@ instance.
 
 ### Themes
 
-`/themes` (alias `/theme`) opens a picker for the built-in palettes — **onyx,
-graphite, glacier, nocturne, lagoon, plum** — and lets you build a custom one.
+`/themes` (alias `/theme`) opens a picker for the built-in palettes (**onyx,
+graphite, glacier, nocturne, lagoon, plum**) and lets you build a custom one.
 Colours update live, including the whole terminal background; custom themes are
 session-only.
 
@@ -221,7 +221,7 @@ session-only.
 ```
 
 The API key is resolved from `ROKARU_OMLX_KEY` or `OMLX_LOCAL_KEY`, then the
-macOS Keychain (service `rokaru-omlx`), then the local default `sk-omlx-local` —
+macOS Keychain (service `rokaru-omlx`), then the local default `sk-omlx-local`,
 and is never written to disk by rokaru.
 
 ## Acknowledgements

@@ -230,7 +230,16 @@ session-only.
   "baseURL": "http://127.0.0.1:8000/v1",
   "systemPrompt": "You are rokaru...",
   "inputHeight": 10,
-  "sampling": { "temperature": 0.7, "topP": 0.95, "topK": 20, "maxTokens": 4096 },
+  "sampling": {
+    "temperature": 0.7,
+    "topP": 0.95,
+    "topK": 20,
+    "maxTokens": 4096,
+    "minP": 0.0,
+    "repetitionPenalty": 1.0,
+    "presencePenalty": 0.0
+  },
+  "modelSampling": {},
   "sandbox": { "extraWritePaths": [] },
   "web": { "enabled": false },
   "mcp": { "servers": {} },
@@ -238,6 +247,14 @@ session-only.
   "diagnostics": { "enabled": true, "command": "" },
   "notify": true
 }
+```
+
+`sampling` sets the defaults for every model. A `repetitionPenalty` above `1.0`
+(or a little `minP`) helps with models that loop; `1.0` means off. Override any of
+these for a single model by id under `modelSampling`, for example:
+
+```json
+"modelSampling": { "Ling-3.0-tiny-oQ6e": { "repetitionPenalty": 1.1 } }
 ```
 
 The API key is resolved from `ROKARU_OMLX_KEY` or `OMLX_LOCAL_KEY`, then the

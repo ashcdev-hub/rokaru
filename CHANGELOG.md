@@ -3,6 +3,13 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.7.11] - 2026-10-07
+
+### Changed
+
+- README: document the sampling fields and per-model `modelSampling` overrides
+  in the config example.
+
 ## [0.7.10] - 2026-10-07
 
 ### Added

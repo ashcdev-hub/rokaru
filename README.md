@@ -20,17 +20,6 @@ cd ~/some/project
 rokaru
 ```
 
-`enter` send · `shift+enter` newline · `esc` abort · `tab` switch plan/build ·
-`ctrl+r` toggle all thinking · `ctrl+o` expand tool output · `ctrl+y` copy the
-last response · `ctrl+p` command palette · `ctrl+c` quit; `↑`/`↓` recall earlier
-prompts. Click a **Thought** line or a **tool panel** to expand it. Tool calls
-render as their own panels with a per-category icon, a duration and red/green
-diffs for edits; a full-width footer shows mode · context % · git branch ·
-`ctrl+p`. Replies render as markdown (aligned tables, blockquotes, highlighted
-code with line numbers) and fade in once; running tools show a spinner. The start
-screen has a drifting "matrix rain" tinted with the logo's colours. Selecting
-text copies it.
-
 ## Modes
 
 - **build** (default) — full editing and command running.

@@ -179,3 +179,15 @@ exit, like everything else).
 }
 ```
 
+## Acknowledgements
+
+rokaru's look, feel and feature set are inspired by
+[**opencode**](https://github.com/anomalyco/opencode) — thanks to its authors.
+It's built on [**@opentui**](https://github.com/anomalyco/opentui), the terminal
+UI library that powers the Solid-based TUI. This is an independent
+implementation; neither project's code is used here.
+
+## License
+
+[MIT](LICENSE) © 2026 Ash Eskrett
+

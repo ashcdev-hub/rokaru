@@ -7,7 +7,7 @@ Private local AI harness for [**oMLX**](https://github.com/jundot/omlx) on apple
 ## Requirements & install
 
 Rokaru is a TUI which requires macOS with **Bun**, and **oMLX already running** with a model loaded (rokaru
-never starts/stops oMLX).
+never starts/stops the oMLX server).
 
 ```sh
 ln -sfn ~/dev/rokaru/bin/rokaru /usr/local/bin/rokaru

@@ -18,7 +18,7 @@ long-term storage.
 
 ## Why rokaru
 
-- **Fully local.** The only path to the internet is the optional, read-only web tools.
+- **Fully local.** Only supports local models via oMLX, no cloud LLMs. The only path to the internet is the optional, read-only web tools.
 - **Optimised for oMLX.** Tuned for oMLX's streaming protocol, prefix caching, and memory guard behaviour.
 - **RAM-only sessions.** No transcript, history or log is written to disk; on
   exit (`ctrl+c`, `SIGTERM`, crash) buffers are wiped, so there is nothing to

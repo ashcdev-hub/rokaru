@@ -3,6 +3,34 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.8.1] - 2026-10-08
+
+### Added
+
+- **Session-wide approvals.** `/allow-all` (or `A` on a permission prompt)
+  auto-approves every tool for the rest of the session, with a warning shown in
+  the status bar; it resets on a new session.
+- **Leaner MCP prompts.** `mcp.trimDescriptions` shortens MCP tool prose while
+  keeping every tool and argument, and an MCP call that returns no items now
+  says so explicitly. The permission prompt also previews `mcp_call` arguments.
+
+### Changed
+
+- Permission checks share one registry and honour per-call destructiveness.
+- A memory-guard failure is now explained as a RAM limit, kept distinct from a
+  context-window overflow, and a reply cut off by the output-token limit says so.
+
+### Fixed
+
+- **Unbounded tool results.** Single-line results (e.g. a JSON blob from an MCP
+  log or list call) weren't collapsed because the transcript only counted lines;
+  collapsed panels now also cap the visible text and offer click-to-expand.
+- **Duplicated question.** The `question` panel restated the question in both its
+  header and its `Q: …` result line; the transcript now shows only the answer.
+- **Lost prompt draft.** Opening the palette, MCP, theme or model panel
+  unmounted the prompt and discarded whatever you had typed; the draft is now
+  kept and restored when you return.
+
 ## [0.8.0] - 2026-10-07
 
 ### Added

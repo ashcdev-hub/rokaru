@@ -161,6 +161,7 @@ export function App() {
         "  /redo           re-apply the last undone edit",
         "  /tune           show the self-tuning scoreboard (which model works best)",
         "  /good | /bad     label the last turn to train the scoreboard",
+        "  /allow-all      auto-approve all tool calls for this session (toggle)",
         "  /find <text>    search the conversation",
         "  /clear          clear the conversation",
         "  /new            start a new conversation",
@@ -337,6 +338,15 @@ export function App() {
         store.addInfoMessage(tuneMessage())
         return
       }
+      case "allow-all": {
+        const next = !store.autoApprove()
+        store.setAutoApprove(next)
+        store.showToast(
+          next ? "all tools auto-approved (this session)" : "tool approvals restored",
+          next ? "warn" : "info",
+        )
+        return
+      }
       case "purge-cache": {
         if (isOmlxServerRunning()) {
           store.addInfoMessage(
@@ -473,7 +483,9 @@ export function App() {
       return
     }
     updateMcpStatus(entry.name, { status: "connecting", tools: 0, error: undefined })
-    const result = await connectServer(entry.name, serverConfig)
+    const result = await connectServer(entry.name, serverConfig, {
+      trimDescriptions: config.mcp.trimDescriptions === true,
+    })
     if (result.error) {
       updateMcpStatus(entry.name, { status: "error", tools: 0, error: result.error })
       store.showToast(`mcp ${entry.name}: ${result.error}`, "error")
@@ -779,6 +791,9 @@ export function App() {
       } else if (key.name === "return" || key.name === "enter") {
         key.preventDefault()
         store.answerPermission(store.PERMISSION_DECISIONS[store.permissionChoice()] ?? "deny")
+      } else if (key.name === "a" && key.shift) {
+        key.preventDefault()
+        store.answerPermission("all")
       } else if (key.name === "y") {
         key.preventDefault()
         store.answerPermission("once")
@@ -916,7 +931,6 @@ export function App() {
 
   const chooseModel = (model: ModelInfo) => {
     applyModel(model)
-    store.setInputValue("")
     setPhase("ready")
   }
 
@@ -1021,6 +1035,7 @@ export function Startup(props: {
             <text fg={getTheme().bad}>{props.message}</text>
           </Show>
           <text fg={getTheme().text}>{""}</text>
+          <text fg={getTheme().dim}>{`workspace · ${store.workspace() || "?"}`}</text>
           <text fg={getTheme().dim}>ctrl+c to quit</text>
         </box>
       </box>

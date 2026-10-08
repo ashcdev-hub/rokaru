@@ -7,6 +7,7 @@ import { categorize, recordTurn } from "./learning"
 import { estimateTokens, truncateToTokens } from "./tokens"
 import { streamChat, type ChatMessage, type ContentPart, type ToolCall, type Usage } from "./omlx"
 import { getTool, toolSchemas, type ToolContext } from "./tools"
+import { needsPermission, permissionKey } from "./permissions"
 import { redactSecrets } from "./redact"
 import { clearWebAllowlist } from "./web"
 import { clearSnapshots } from "./undo"
@@ -131,6 +132,11 @@ function parseArgs(raw: string): any {
   return { _raw: raw }
 }
 
+// A tool may decide per call whether it is destructive (e.g. the MCP proxy).
+function effectiveDestructive(tool: { destructive: boolean; destructiveFor?: (args: any) => boolean }, rawArgs: string): boolean {
+  return tool.destructiveFor ? tool.destructiveFor(parseArgs(rawArgs)) : tool.destructive
+}
+
 async function streamOnce(
   options: TurnOptions,
   assistantId: string,
@@ -244,7 +250,7 @@ const toolCalls = new Map<number, { id: string; name: string; args: string }>()
 
 export function isContextOverflow(error: Error): boolean {
   const m = (error.message || "").toLowerCase()
-  return /context.*(length|window|limit)|maximum context|too (long|many tokens)|input length|exceed.{0,20}context|context.{0,20}exceed|prefill memory guard|prefill would require|dynamic ceiling|memory guard/.test(
+  return /context.*(length|window|limit)|maximum context|too (long|many tokens)|input length|exceed.{0,20}context|context.{0,20}exceed/.test(
     m,
   )
 }
@@ -340,7 +346,7 @@ async function runSubagent(options: TurnOptions, prompt: string): Promise<string
     })
     for (const call of ordered) {
       const tool = getTool(call.name)
-      if (!tool || tool.destructive || call.name === "question") {
+      if (!tool || effectiveDestructive(tool, call.args) || call.name === "question") {
         messages.push({ role: "tool", tool_call_id: call.id, name: call.name, content: "(subagent is read-only)" })
         continue
       }
@@ -456,24 +462,30 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
       store.updateToolPart(assistantId, call.id, { status: "error", result })
       return result
     }
-    if (tool.destructive) {
-      const parsed = parseArgs(call.args)
-      const commandWord =
-        tool.name === "bash" ? String(parsed?.command ?? "").trim().split(/\s+/)[0] ?? "" : ""
-      const alreadyAllowed =
-        tool.name === "bash" ? store.isCommandAllowed(commandWord) : store.isToolAllowed(call.name)
-      if (!alreadyAllowed) {
-        const decision = await store.requestPermission(call.name, call.args || "{}", true)
-        if (decision === "deny") {
-          const result = "The user denied permission to run this tool."
-          store.updateToolPart(assistantId, call.id, { status: "denied", result })
-          return result
-        }
-        if (decision === "always") {
-          if (tool.name === "bash" && commandWord) store.allowCommand(commandWord)
-          else store.allowTool(call.name)
-        }
+    const destructive = effectiveDestructive(tool, call.args)
+    const parsed = parseArgs(call.args)
+    if (
+      needsPermission({
+        name: call.name,
+        destructive,
+        args: parsed,
+        autoApprove: store.autoApprove(),
+        isToolAllowed: store.isToolAllowed,
+        isCommandAllowed: store.isCommandAllowed,
+      })
+    ) {
+      const decision = await store.requestPermission(call.name, call.args || "{}", true)
+      if (decision === "deny") {
+        const result = "The user denied permission to run this tool."
+        store.updateToolPart(assistantId, call.id, { status: "denied", result })
+        return result
       }
+      if (decision === "always") {
+        const key = permissionKey(call.name, parsed)
+        if (call.name === "bash" && key) store.allowCommand(key)
+        else store.allowTool(key)
+      }
+      if (decision === "all") store.setAutoApprove(true)
     }
     store.setStatus("tool")
     store.setStatusDetail(call.name)
@@ -562,6 +574,12 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
 
       if (ordered.length === 0) {
         history.push({ role: "assistant", content: result.content })
+        if (result.finishReason === "length") {
+          const limit = resolveSampling(config, options.model).maxTokens
+          store.addInfoMessage(
+            `(the reply hit the ${limit}-token output limit and was cut off — raise sampling.maxTokens, or send "continue" to resume)`,
+          )
+        }
         store.setStatus("idle")
         store.setStatusDetail("")
         return
@@ -575,9 +593,9 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
       history.push({ role: "assistant", content: result.content || null, tool_calls: assistantToolCalls })
 
       // Read-only tools can run together; anything that writes or executes waits.
-      const isReadOnly = (call: { name: string }) => {
+      const isReadOnly = (call: { name: string; args: string }) => {
         const tool = getTool(call.name)
-        return tool !== undefined && !tool.destructive
+        return tool !== undefined && !effectiveDestructive(tool, call.args)
       }
       const concurrent = ordered.filter(isReadOnly)
       const sequential = ordered.filter((call) => !isReadOnly(call))

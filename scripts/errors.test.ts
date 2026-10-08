@@ -1,4 +1,5 @@
 import { friendlyError } from "../src/errors"
+import { isContextOverflow } from "../src/agent"
 
 let pass = 0
 let fail = 0
@@ -22,8 +23,23 @@ check("auth failure mentions the API key", /api key/i.test(auth), auth)
 const timeout = friendlyError(new Error("request timed out"), ctx)
 check("timeout is explained", /time/i.test(timeout), timeout)
 
-const big = friendlyError(new Error("prefill memory guard: not enough memory"), ctx)
-check("context overflow points at /compact", /compact/i.test(big), big)
+const memory = friendlyError(
+  new Error(
+    "oMLX HTTP 400: oMLX prefill memory guard rejected this prompt: Prefill would require ~33.52 GB peak (current 29.42 GB + KV+SDPA 4.11 GB) but dynamic ceiling is 31.00 GB.",
+  ),
+  ctx,
+)
+check("memory guard is explained as a RAM limit", /memory/i.test(memory) && /not the model's/i.test(memory), memory)
+check("memory guard does not suggest /compact", !/compact/i.test(memory), memory)
+
+const context = friendlyError(new Error("context length exceeded: too many tokens"), ctx)
+check("context overflow points at /compact", /compact/i.test(context), context)
+
+check(
+  "isContextOverflow ignores memory-guard errors",
+  isContextOverflow(new Error("oMLX prefill memory guard rejected this prompt")) === false,
+)
+check("isContextOverflow catches real context errors", isContextOverflow(new Error("context length exceeded")) === true)
 
 const abort = friendlyError(Object.assign(new Error("x"), { name: "AbortError" }), ctx)
 check("abort is reported plainly", abort === "aborted", abort)

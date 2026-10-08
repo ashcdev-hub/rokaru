@@ -269,8 +269,8 @@ export function toggleToolExpanded(messageId: string, toolId: string): void {
   }))
 }
 
-export type PermissionDecision = "once" | "always" | "deny"
-export const PERMISSION_DECISIONS: PermissionDecision[] = ["once", "always", "deny"]
+export type PermissionDecision = "once" | "always" | "all" | "deny"
+export const PERMISSION_DECISIONS: PermissionDecision[] = ["once", "always", "all", "deny"]
 
 export interface PermissionRequest {
   name: string
@@ -286,6 +286,8 @@ export const [permissionChoice, setPermissionChoice] = createSignal(0)
 export const [allowedTools, setAllowedTools] = createSignal<string[]>([])
 // Leading command words auto-allowed for bash (e.g. "git"), session-only.
 export const [allowedCommands, setAllowedCommands] = createSignal<string[]>([])
+// Session-wide "allow all tools" switch, toggled with /allow-all.
+export const [autoApprove, setAutoApprove] = createSignal(false)
 
 export function isToolAllowed(name: string): boolean {
   return allowedTools().includes(name)
@@ -412,6 +414,7 @@ export function resetSession(): void {
   setPromptTokens(0)
   setAllowedTools([])
   setAllowedCommands([])
+  setAutoApprove(false)
   setPendingImages([])
   setPastedText("")
   setTodos([])

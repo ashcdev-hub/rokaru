@@ -1,6 +1,8 @@
 import { spawn, type ChildProcess } from "node:child_process"
 import type { McpConfig, McpServerConfig } from "./config"
 import type { ToolDef } from "./tools/types"
+import { emptyResultHint } from "./mcpResult"
+import { stripSchemaDescriptions, trimDescription } from "./mcpTrim"
 import { VERSION } from "./version"
 
 const PROTOCOL_VERSION = "2024-11-05"
@@ -165,7 +167,7 @@ export class McpClient {
       parts.push(JSON.stringify(result))
     }
     const text = parts.join("\n")
-    return result?.isError ? `error: ${text}` : text
+    return result?.isError ? `error: ${text}` : emptyResultHint(text)
   }
 
   close(): void {
@@ -193,8 +195,13 @@ export interface McpServerConnectResult {
 }
 
 // Start (or restart) a single server and return its tools. Does not register
-// them; the caller decides.
-export async function connectServer(name: string, config: McpServerConfig): Promise<McpServerConnectResult> {
+// them; the caller decides. `trimDescriptions` keeps every tool and argument but
+// shortens the prose to save context.
+export async function connectServer(
+  name: string,
+  config: McpServerConfig,
+  opts: { trimDescriptions?: boolean } = {},
+): Promise<McpServerConnectResult> {
   disconnectServer(name)
   const client = new McpClient(name, config)
   try {
@@ -204,11 +211,17 @@ export async function connectServer(name: string, config: McpServerConfig): Prom
     const tools: ToolDef[] = remoteTools.map((remote) => {
       const toolName = `mcp__${name}__${remote.name}`
       const readOnly = remote.annotations?.readOnlyHint === true
+      const description = opts.trimDescriptions
+        ? `[${name}] ${trimDescription(remote.description) ?? remote.name}`
+        : `[${name}] ${remote.description ?? remote.name}`
+      const parameters = (opts.trimDescriptions ? stripSchemaDescriptions(remote.inputSchema) : remote.inputSchema) as
+        | Record<string, unknown>
+        | undefined
       return {
         name: toolName,
-        description: `[${name}] ${remote.description ?? remote.name}`,
+        description,
         destructive: !readOnly,
-        parameters: (remote.inputSchema as Record<string, unknown>) ?? { type: "object", properties: {} },
+        parameters: parameters ?? { type: "object", properties: {} },
         async run(args, ctx) {
           return client.callTool(remote.name, args, ctx.signal)
         },

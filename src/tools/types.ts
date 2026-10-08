@@ -19,4 +19,7 @@ export interface ToolDef {
   run(args: any, ctx: ToolContext): Promise<string>
   // Destructive tools prompt before running.
   destructive: boolean
+  // Optional per-call override. Allows a single tool (e.g. an MCP proxy) to be
+  // read-only or destructive depending on its arguments.
+  destructiveFor?(args: any): boolean
 }

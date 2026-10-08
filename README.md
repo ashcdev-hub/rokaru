@@ -91,7 +91,9 @@ Type `/` for a menu (**Tab** completes) or **Ctrl+P** for the palette.
 | `/help` | List commands. |
 | `/exit` | Quit (alias `/quit`). |
 
-A prompt sent while the model is working is queued and sent when it's free.
+A prompt sent while the model is working is queued and sent when it's free. Your
+draft is kept if you open the palette, MCP, theme or model panel, and restored
+when you come back.
 
 ## Privacy & security
 
@@ -163,7 +165,8 @@ Type `@` in the prompt to pick a workspace file by name (fuzzy, ignores
   rows (default 10).
 - Each result is capped by `tools.maxResultChars` (default 24,000) and by
   `tools.maxResultTokens` (default 6,000); rounds per
-  turn by `tools.maxRounds` (default 100; `0` = unlimited).
+  turn by `tools.maxRounds` (default 100; `0` = unlimited). Long or single-line
+  results are collapsed in the transcript (click to expand).
 - **Project context & checks.** A workspace `AGENTS.md` is loaded into the system
   prompt. After edits, rokaru runs the project check once (a detected `typecheck`
   script, a local `tsc`, or `diagnostics.command`) and feeds failures back to be

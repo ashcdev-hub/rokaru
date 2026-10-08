@@ -25,7 +25,14 @@ export function friendlyError(error: unknown, context: ErrorContext = {}): strin
   if (/http 404|not found|no such model|model[^.]{0,40}(not|isn't|is not|unavailable|missing)|model_not_found/.test(lower)) {
     return `oMLX does not have ${model} loaded. Load it in oMLX (or pick another with /model) and try again.`
   }
-  if (/prefill memory guard|memory guard|context[^.]{0,20}(length|window|limit)|too (long|many tokens)|exceeds?.{0,20}context/.test(lower)) {
+  if (/prefill memory guard|prefill would require|dynamic ceiling|memory guard|out of memory/.test(lower)) {
+    return (
+      "oMLX ran out of memory to process this request (prefill memory guard). This is a RAM limit, not the model's " +
+      "context window. Try closing other apps, using a smaller model, lowering the model's context window in oMLX, " +
+      "or raising its Memory Guard ceiling."
+    )
+  }
+  if (/context[^.]{0,20}(length|window|limit)|too (long|many tokens)|exceeds?.{0,20}context|maximum context/.test(lower)) {
     return "The prompt is too big for this model's context. Use /compact or start a new chat."
   }
   return raw

@@ -3,7 +3,7 @@ import { createSignal, onMount, Show } from "solid-js"
 import { defaultTextareaKeyBindings, type KeyBinding, type TextareaRenderable } from "@opentui/core"
 import { usePaste, useTerminalDimensions } from "@opentui/solid"
 import { getTheme } from "../theme"
-import { consumeInputPrefill, pastedLineCount, pastedText, questionTyping, setPastedText, status } from "../store"
+import { consumeInputPrefill, inputValue, pastedLineCount, pastedText, questionTyping, setPastedText, status } from "../store"
 import { PromptPanel } from "./PromptPanel"
 
 const bindings: KeyBinding[] = [
@@ -106,10 +106,14 @@ export function InputBox(props: {
       focus: () => ref?.focus(),
     }
     props.onReady?.(handle)
+    // Keep the draft across screen changes (palette, MCP/theme panels, model
+    // picker): restore whatever was last in the box, unless a command prefill
+    // is explicitly replacing it.
     const prefill = consumeInputPrefill()
-    if (prefill.length > 0) {
-      ref?.setText(prefill)
-      track(prefill)
+    const restore = prefill.length > 0 ? prefill : inputValue()
+    if (restore.length > 0) {
+      ref?.setText(restore)
+      track(restore)
     }
   })
 

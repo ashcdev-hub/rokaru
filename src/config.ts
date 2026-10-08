@@ -41,6 +41,9 @@ export interface McpServerConfig {
 export interface McpConfig {
   // Local stdio MCP servers. Each is spawned as a child process.
   servers: Record<string, McpServerConfig>
+  // Shorten MCP tool descriptions before injecting them. Every tool and every
+  // argument is kept; only the prose is trimmed. Off by default.
+  trimDescriptions?: boolean
 }
 
 export interface ToolsConfig {
@@ -125,6 +128,7 @@ export const DEFAULT_CONFIG: RokaruConfig = {
   },
   mcp: {
     servers: {},
+    trimDescriptions: false,
   },
   tools: {
     maxResultChars: 24_000,
@@ -171,7 +175,10 @@ function mergeConfig(partial: Partial<RokaruConfig>): RokaruConfig {
     modelSampling: { ...DEFAULT_CONFIG.modelSampling, ...(partial.modelSampling ?? {}) },
     sandbox: { ...DEFAULT_CONFIG.sandbox, ...(partial.sandbox ?? {}) },
     web: { ...DEFAULT_CONFIG.web, ...(partial.web ?? {}) },
-    mcp: { servers: { ...DEFAULT_CONFIG.mcp.servers, ...(partial.mcp?.servers ?? {}) } },
+    mcp: {
+      servers: { ...DEFAULT_CONFIG.mcp.servers, ...(partial.mcp?.servers ?? {}) },
+      trimDescriptions: partial.mcp?.trimDescriptions ?? DEFAULT_CONFIG.mcp.trimDescriptions,
+    },
     tools: { ...DEFAULT_CONFIG.tools, ...(partial.tools ?? {}) },
     diagnostics: { ...DEFAULT_CONFIG.diagnostics, ...(partial.diagnostics ?? {}) },
     learning: { ...DEFAULT_CONFIG.learning, ...(partial.learning ?? {}) },

@@ -15,6 +15,7 @@ import {
 const LABELS: Record<PermissionDecision, string> = {
   once: "allow once",
   always: "always allow (this session)",
+  all: "allow all tools (this session)",
   deny: "deny",
 }
 
@@ -115,6 +116,22 @@ function ReplacePreview(props: { args: any }) {
   )
 }
 
+function McpCallPreview(props: { args: any }) {
+  const tool = String(props.args.tool ?? "")
+  const text = JSON.stringify(props.args.arguments ?? {}, null, 2) ?? "{}"
+  const lines = text.split("\n")
+  const shown = lines.slice(0, MAX_LINES)
+  return (
+    <>
+      <text fg={getTheme().meter}>{`MCP call  ${tool}`}</text>
+      <CodeLines lines={shown} />
+      <Show when={lines.length > shown.length}>
+        <text fg={getTheme().dim}>{`… (${lines.length - shown.length} more lines)`}</text>
+      </Show>
+    </>
+  )
+}
+
 export function PermissionBody(props: { request: PermissionRequest }) {
   const name = () => props.request.name
   const args = () => parseArgs(props.request.args)
@@ -151,7 +168,14 @@ export function PermissionBody(props: { request: PermissionRequest }) {
                   fallback={
                     <Show
                       when={name() === "replace_in_files"}
-                      fallback={<Summary name={name()} args={args()} raw={props.request.args} />}
+                      fallback={
+                        <Show
+                          when={name() === "mcp_call"}
+                          fallback={<Summary name={name()} args={args()} raw={props.request.args} />}
+                        >
+                          <McpCallPreview args={args()} />
+                        </Show>
+                      }
                     >
                       <ReplacePreview args={args()} />
                     </Show>
@@ -182,7 +206,7 @@ export function PermissionBody(props: { request: PermissionRequest }) {
           </text>
         )}
       </For>
-      <text fg={getTheme().dim}>↑/↓ choose · enter confirm · y/a/n quick</text>
+      <text fg={getTheme().dim}>↑/↓ choose · enter confirm · y/a/A/n quick</text>
     </>
   )
 }

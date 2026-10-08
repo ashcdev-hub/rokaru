@@ -14,6 +14,7 @@ export const COMMANDS: CommandSpec[] = [
   { name: "tune", description: "show the self-tuning scoreboard" },
   { name: "good", description: "mark the last turn as good (trains tuning)" },
   { name: "bad", description: "mark the last turn as bad (trains tuning)" },
+  { name: "allow-all", description: "auto-approve all tool calls for this session" },
   { name: "find", description: "search the conversation" },
   { name: "clear", description: "clear the conversation" },
   { name: "new", description: "start a new conversation" },

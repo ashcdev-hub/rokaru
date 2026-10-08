@@ -19,6 +19,7 @@ const checks: [string, boolean][] = [
   ["preview is truncated", frame.includes("more lines") && !frame.includes("line 250")],
   ["allow once is visible", frame.includes("allow once")],
   ["always allow is visible", frame.includes("always allow")],
+  ["allow all tools is visible", frame.includes("allow all tools")],
   ["deny is visible", frame.includes("deny")],
 ]
 const ok = checks.every(([, v]) => v)

@@ -8,8 +8,8 @@ function check(name: string, ok: boolean) {
 }
 
 check(
-  "oMLX prefill memory guard",
-  isContextOverflow(
+  "memory guard is not a context overflow",
+  !isContextOverflow(
     new Error(
       'oMLX HTTP 400: {"error":{"message":"oMLX prefill memory guard rejected this prompt: Prefill would require ~33.11 GB peak (current 29.62 GB + KV+SDPA 3.49 GB) but dynamic ceiling is 32.72 GB."}}',
     ),

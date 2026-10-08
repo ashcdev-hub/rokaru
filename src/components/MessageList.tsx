@@ -17,11 +17,16 @@ import {
   todos,
   toggleThinking,
   toggleToolExpanded,
+  workspace,
 } from "../store"
 import type { Part, StreamKind, UIMessage } from "../store"
 import { transcriptWindow } from "../transcriptWindow"
 
 const COLLAPSE_LINES = 10
+// Tool results are frequently one enormous line (a JSON blob from an MCP log or
+// list call). Line-count alone never collapses those, so also bound the visible
+// character budget to roughly what ten wrapped rows can show.
+const COLLAPSE_CHARS = 800
 
 let transcriptBox: ScrollBoxRenderable | undefined
 
@@ -57,9 +62,16 @@ export function scrollTranscriptToBottom(): void {
 }
 
 function collapse(text: string, max: number, expanded: boolean): string {
+  if (expanded) return text
   const lines = text.split("\n")
-  if (lines.length <= max || expanded) return text
-  return lines.slice(0, max).join("\n") + `\n… (${lines.length - max} more lines · click to expand)`
+  const lineClipped = lines.length > max
+  let shown = lines.slice(0, max).join("\n")
+  const charClipped = shown.length > COLLAPSE_CHARS
+  if (charClipped) shown = shown.slice(0, COLLAPSE_CHARS)
+  if (!lineClipped && !charClipped) return text
+  const hiddenChars = Math.max(0, text.length - shown.length)
+  const reason = lineClipped && !charClipped ? `${lines.length - max} more lines` : `${hiddenChars} more chars`
+  return `${shown}… (${reason} · click to expand)`
 }
 
 function formatDuration(ms: number): string {
@@ -143,6 +155,16 @@ function ToolView(props: { message: UIMessage; part: Extract<Part, { kind: "tool
   const header = () => toolHeader(part.name, part.args)
   const expanded = () => Boolean(part.expanded) || expandTools()
 
+  // The question header already restates the question, so the stored `Q: …`
+  // result line would duplicate it; show just the answer in the transcript.
+  const result = () => {
+    if (part.name === "question" && part.result.startsWith("Q: ")) {
+      const newline = part.result.indexOf("\n")
+      if (newline >= 0) return part.result.slice(newline + 1).trimStart()
+    }
+    return part.result
+  }
+
   if (part.name === "todo_write") {
     return (
       <box
@@ -203,9 +225,9 @@ function ToolView(props: { message: UIMessage; part: Extract<Part, { kind: "tool
       <Show
         when={part.diff && part.diff.length > 0}
         fallback={
-          <Show when={part.result.length > 0}>
+          <Show when={result().length > 0}>
             <text fg={part.status === "error" || part.status === "denied" ? getTheme().bad : getTheme().dim}>
-              {collapse(part.result, COLLAPSE_LINES, expanded())}
+              {collapse(result(), COLLAPSE_LINES, expanded())}
             </text>
           </Show>
         }
@@ -318,6 +340,7 @@ function EmptyState() {
       </text>
       <text fg={getTheme().dim}>type a message and press enter</text>
       <text fg={getTheme().dim}>/ for commands · ctrl+p palette · tab plan/build</text>
+      <text fg={getTheme().dim}>{`workspace · ${workspace() || "?"}`}</text>
     </box>
   )
 }

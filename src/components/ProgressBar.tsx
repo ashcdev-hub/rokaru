@@ -3,7 +3,7 @@ import { createEffect, createSignal, onCleanup, Show } from "solid-js"
 import { useTerminalDimensions } from "@opentui/solid"
 import { homedir } from "node:os"
 import { getTheme, sg } from "../theme"
-import { contextPercent, gitBranch, mode, status, statusDetail, workspace } from "../store"
+import { contextPercent, autoApprove, gitBranch, mode, status, statusDetail, workspace } from "../store"
 
 const MAX_WIDTH = 16
 
@@ -73,6 +73,9 @@ export function ProgressBar() {
         >
           <text fg={getTheme().meter}>{cells()}</text>
           <text fg={getTheme().dim}>{`  ${statusDetail() || status()}   esc interrupt`}</text>
+        </Show>
+        <Show when={autoApprove()}>
+          <text fg={getTheme().warn}>{"  ⚠ allow-all "}</text>
         </Show>
         <box flexGrow={1} />
         <text fg={getTheme().dim}>{right()}</text>

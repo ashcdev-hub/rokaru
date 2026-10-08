@@ -11,8 +11,8 @@
   <img alt="license" src="https://img.shields.io/badge/license-MIT-3b82f6?style=flat-square">
 </p>
 
-rokaru is a terminal UI that turns a local model served by **oMLX** into a
-coding agent inside your project directory. It reads and edits files, runs
+rokaru is a privacy-first TUI that turns a local model served by **oMLX** into a
+coding agent. It reads and edits files, runs
 commands and plans work, while keeping everything on your machine and out of
 long-term storage.
 
@@ -20,6 +20,7 @@ long-term storage.
 
 - **Fully local.** The model runs on your Mac through oMLX. The only path to the
   internet is the optional, read-only web tools.
+- **Optimised for oMLX.** Tuned for oMLX's streaming protocol, prefix caching, and memory guard behaviour.
 - **RAM-only sessions.** No transcript, history or log is written to disk; on
   exit (`ctrl+c`, `SIGTERM`, crash) buffers are wiped, so there is nothing to
   recover.

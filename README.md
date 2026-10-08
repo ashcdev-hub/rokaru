@@ -25,8 +25,6 @@ long-term storage.
   recover.
 - **Sandboxed tools.** Shell commands run with **all network denied** and writes
   confined to your workspace; sensitive paths are refused outright.
-- **Plan, then build.** A read-only planning mode where the writing and exec
-  tools aren't even offered to the model.
 - **Session Wipe.** When you close rokaru your session data is wiped and is irretrievable (session data may be still be retrievable via olmx's kv cache / other)
 
 ## Quick start

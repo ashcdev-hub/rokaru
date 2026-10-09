@@ -19,6 +19,7 @@ export const COMMANDS: CommandSpec[] = [
   { name: "clear", description: "clear the conversation" },
   { name: "new", description: "start a new conversation" },
   { name: "mcp", description: "list connected MCP servers" },
+  { name: "skills", description: "list available skills" },
   { name: "purge-cache", description: "delete oMLX session KV-cache (server must be stopped)" },
   { name: "privacy-check", description: "send a canary and scan oMLX for leaked session data" },
   { name: "themes", description: "switch colour theme" },

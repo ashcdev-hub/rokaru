@@ -46,6 +46,18 @@ export interface McpConfig {
   trimDescriptions?: boolean
 }
 
+export interface SkillsConfig {
+  // Extra local skill directories to scan, resolved the same way opencode does
+  // (relative from cwd, ~/ for home, absolute as written). Combined with the
+  // built-in global + project sources rather than replacing them.
+  sources?: string[]
+  // Skill permission rules, evaluated in order with last-match-wins: deny, then
+  // allow. "*" matches every skill. "id*" and "*id" prefix/suffix wildcards are
+  // supported. Unmatched skills default to "ask" (advertised, prompted on load).
+  allow?: string[]
+  deny?: string[]
+}
+
 export interface ToolsConfig {
   // Cap on characters of a single tool result sent to the model.
   maxResultChars: number
@@ -82,6 +94,7 @@ export interface RokaruConfig {
   sandbox: SandboxConfig
   web: WebConfig
   mcp: McpConfig
+  skills: SkillsConfig
   tools: ToolsConfig
   diagnostics: DiagnosticsConfig
   learning: LearningConfig
@@ -130,6 +143,7 @@ export const DEFAULT_CONFIG: RokaruConfig = {
     servers: {},
     trimDescriptions: false,
   },
+  skills: {},
   tools: {
     maxResultChars: 24_000,
     maxResultTokens: 6_000,
@@ -179,6 +193,7 @@ function mergeConfig(partial: Partial<RokaruConfig>): RokaruConfig {
       servers: { ...DEFAULT_CONFIG.mcp.servers, ...(partial.mcp?.servers ?? {}) },
       trimDescriptions: partial.mcp?.trimDescriptions ?? DEFAULT_CONFIG.mcp.trimDescriptions,
     },
+    skills: { ...DEFAULT_CONFIG.skills, ...(partial.skills ?? {}) },
     tools: { ...DEFAULT_CONFIG.tools, ...(partial.tools ?? {}) },
     diagnostics: { ...DEFAULT_CONFIG.diagnostics, ...(partial.diagnostics ?? {}) },
     learning: { ...DEFAULT_CONFIG.learning, ...(partial.learning ?? {}) },

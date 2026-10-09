@@ -85,6 +85,7 @@ Type `/` for a menu (**Tab** completes) or **Ctrl+P** for the palette.
 | `/find <text>` | Jump through conversation matches (`n` next, `p` prev). |
 | `/clear` · `/new` | Start over. |
 | `/mcp` | Enable/disable MCP servers (interactive panel). |
+| `/skills` | List available skills (interactive panel). |
 | `/purge-cache` | Delete oMLX session KV-cache (oMLX server must be stopped). |
 | `/privacy-check` | Send a canary request and scan oMLX for any on-disk trace. |
 | `/themes` | Switch colour theme (alias `/theme`). |
@@ -200,6 +201,48 @@ Declare servers under `mcp.servers` in the config:
 }
 ```
 
+### Skills (optional)
+
+A skill is a reusable set of instructions the model can load on demand: a
+directory containing a `SKILL.md` (with `name` and `description` in YAML
+frontmatter), or a single `.md` file. The directory form is recommended so the
+skill can carry supporting files alongside it.
+
+Rokaru looks for skills in:
+
+- `~/.config/rokaru/skills/` — global, available in every project.
+- `.rokaru/skills/` — project-local, searched from your workspace up to the git
+  root (a nearer skill wins on an id clash).
+- any extra directories listed in `skills.sources` (a `~/` path, a relative path
+  from the current directory, or an absolute path).
+
+Each source may hold `<name>/SKILL.md` directories and/or loose `*.md` files. A
+skill's **id** is its directory name (or the file stem), and that id is what the
+model uses to load it.
+
+```text
+~/.config/rokaru/skills/git-release/SKILL.md
+.rokaru/skills/style.md
+```
+
+```markdown
+---
+name: Git Release
+description: Cut a tagged release and update the changelog
+---
+
+Steps to follow when asked to release …
+```
+
+Run **`/skills`** to see what was found (`↑`/`↓` to move, `esc` to close). A
+skill that has a `description` is *invocable*: rokaru advertises it to the model,
+which loads it by calling the `skill` tool. A skill with no description is listed
+but never advertised; add `disable-model-invocation: true` to its frontmatter to
+keep it out of the model's list entirely. Loading asks for permission by default
+— control this with `skills.allow` / `skills.deny` (patterns support `*` and the
+last match wins, e.g. `"deny": ["*"], "allow": ["docs-*"]`). Skills are loaded
+into RAM only, like everything else, and the discovered set is wiped on exit.
+
 ### Web access (optional, read-only)
 
 Off by default. Enable it to give the model two tools, `web_search` and
@@ -267,6 +310,7 @@ session-only.
   "sandbox": { "extraWritePaths": [] },
   "web": { "enabled": false },
   "mcp": { "servers": {} },
+  "skills": {},
   "tools": { "maxResultChars": 24000, "maxResultTokens": 6000, "maxRounds": 100 },
   "diagnostics": { "enabled": true, "command": "" },
   "learning": { "enabled": true, "persist": false, "minRuns": 3 },

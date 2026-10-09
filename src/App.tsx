@@ -24,6 +24,7 @@ import { friendlyError } from "./errors"
 import { listSnapshots, redoLast, undoLast } from "./undo"
 import { connectServer, disconnectServer } from "./mcp"
 import { registerDynamicTools, unregisterDynamicTools } from "./tools"
+import { discoverSkills, invocableSkills } from "./skills"
 import { detectGit } from "./git"
 import { isAbsolute, resolve } from "node:path"
 import { getTheme, activeThemeName, setCurrentTheme, addCustomTheme, themeNames, THEMES, THEME_ROLES, THEME_COLOURS } from "./theme"
@@ -37,6 +38,7 @@ import { ChatView } from "./components/ChatView"
 import { SwitchModel } from "./components/SwitchModel"
 import { CommandPalette, filterPaletteActions, type PaletteAction } from "./components/CommandPalette"
 import { McpPanel } from "./components/McpPanel"
+import { SkillsPanel } from "./components/SkillsPanel"
 import { scrollTranscriptToBottom, scrollTranscriptToMessage } from "./components/MessageList"
 import { ThemePanel } from "./components/ThemePanel"
 import { StartupBackground } from "./components/StartupBackground"
@@ -82,6 +84,9 @@ export function App() {
     // always has none connected (fast prompt, no extra tool schemas).
     const mcpEntries = Object.entries(config.mcp?.servers ?? {})
     store.setMcpServers(mcpEntries.map(([name]) => ({ name, status: "disabled" as const, tools: 0 })))
+    // Skills are discovered once on launch (RAM only). They are a static set
+    // for the session; reloading them is not needed.
+    store.setSkillList(discoverSkills(config.skills, workspace))
     void (async () => {
       try {
         const models = await listModels({ baseURL: config.baseURL, apiKey: resolveApiKey() })
@@ -141,6 +146,7 @@ export function App() {
     config,
     workspace,
     signal,
+    skills: invocableSkills(store.skillList()),
   })
 
   const menuMatches = () => {
@@ -167,6 +173,7 @@ export function App() {
         "  /new            start a new conversation",
         "  /help           show this list",
         "  /mcp            list connected MCP servers",
+        "  /skills         list available skills",
         "  /purge-cache    delete oMLX session KV-cache (server must be stopped)",
         "  /privacy-check  send a canary request and scan oMLX for leaked session data",
         "  /themes         switch colour theme",
@@ -387,6 +394,17 @@ export function App() {
         }
         store.setMcpPanelIndex(0)
         store.setMcpPanel(true)
+        return
+      }
+      case "skills": {
+        if (store.skillList().length === 0) {
+          store.addInfoMessage(
+            "skills: none found.\nAdd a SKILL.md under ~/.config/rokaru/skills/<name>/ or .rokaru/skills/<name>/.",
+          )
+          return
+        }
+        store.setSkillPanelIndex(0)
+        store.setSkillPanel(true)
         return
       }
       case "themes": {
@@ -729,6 +747,21 @@ export function App() {
       return
     }
 
+    if (store.skillPanel()) {
+      const list = store.skillList()
+      if (key.name === "escape") {
+        key.preventDefault()
+        store.setSkillPanel(false)
+      } else if (key.name === "up") {
+        key.preventDefault()
+        store.setSkillPanelIndex(Math.max(0, store.skillPanelIndex() - 1))
+      } else if (key.name === "down") {
+        key.preventDefault()
+        store.setSkillPanelIndex(Math.min(Math.max(0, list.length - 1), store.skillPanelIndex() + 1))
+      }
+      return
+    }
+
     if (store.themePanel()) {
       if (store.themeCustom()) {
         if (key.name === "escape") {
@@ -955,17 +988,24 @@ export function App() {
                 when={store.mcpPanel()}
                 fallback={
                   <Show
-                    when={store.themePanel()}
+                    when={store.skillPanel()}
                     fallback={
-                      <ChatView
-                        onSubmit={submit}
-                        inputHeight={config.inputHeight}
-                        onReady={(handle) => (inputHandle = handle)}
-                        onContentChange={onContentChange}
-                      />
+                      <Show
+                        when={store.themePanel()}
+                        fallback={
+                          <ChatView
+                            onSubmit={submit}
+                            inputHeight={config.inputHeight}
+                            onReady={(handle) => (inputHandle = handle)}
+                            onContentChange={onContentChange}
+                          />
+                        }
+                      >
+                        <ThemePanel />
+                      </Show>
                     }
                   >
-                    <ThemePanel />
+                    <SkillsPanel skills={store.skillList()} />
                   </Show>
                 }
               >

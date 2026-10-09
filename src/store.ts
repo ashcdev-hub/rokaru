@@ -2,6 +2,9 @@ import { createSignal } from "solid-js"
 import { EMPTY_METRICS, type TurnMetrics } from "./metrics"
 import type { ModelInfo } from "./omlx"
 import type { Theme } from "./theme"
+import type { Skill } from "./skills"
+
+export type { Skill } from "./skills"
 
 export type Part =
   | { kind: "text"; text: string }
@@ -82,6 +85,12 @@ export interface McpServerInfo {
 export const [mcpServers, setMcpServers] = createSignal<McpServerInfo[]>([])
 export const [mcpPanel, setMcpPanel] = createSignal(false)
 export const [mcpPanelIndex, setMcpPanelIndex] = createSignal(0)
+
+// Skills discovered this session (RAM only, wiped on exit).
+export const [skillList, setSkillList] = createSignal<Skill[]>([])
+// Skills panel (opened by /skills).
+export const [skillPanel, setSkillPanel] = createSignal(false)
+export const [skillPanelIndex, setSkillPanelIndex] = createSignal(0)
 
 // Theme selector panel (opened by /themes).
 export const [themePanel, setThemePanel] = createSignal(false)

@@ -11,6 +11,8 @@ import { needsPermission, permissionKey } from "./permissions"
 import { redactSecrets } from "./redact"
 import { clearWebAllowlist } from "./web"
 import { clearSnapshots } from "./undo"
+import { discoverSkills, invocableSkills, loadSkill, skillPermission } from "./skills"
+import type { Skill } from "./skills"
 import * as store from "./store"
 
 let history: ChatMessage[] = []
@@ -42,7 +44,7 @@ export function projectInstructions(workspace: string): string {
   return text
 }
 
-function systemPrompt(config: RokaruConfig, planMode: boolean, workspace: string): string {
+function systemPrompt(config: RokaruConfig, planMode: boolean, workspace: string, skills: Skill[] = []): string {
   const mode = planMode
     ? " You are in PLAN mode: you may only read and search - do not modify files or run commands. Produce a concrete, ordered plan and stop; the user will switch to build mode to execute it."
     : " You are in BUILD mode: you may edit files and run commands, asking permission as required."
@@ -53,10 +55,19 @@ function systemPrompt(config: RokaruConfig, planMode: boolean, workspace: string
     " Whenever you need input from the user — a choice between alternatives, a yes/no, which scope to work on — you MUST call the question tool with 2 to 6 options instead of writing the question in plain text. Never present numbered or lettered options (like (a)/(b) or 1./2./3.) in your reply text; always use the question tool for those. The tool shows the options as a pick list and returns the user's choice."
   const notes = projectInstructions(workspace)
   const project = notes.length > 0 ? `\n\nProject instructions (AGENTS.md):\n${notes}` : ""
+  // Skills you can activate — appended last so the mode clause stays at the
+  // tail (oMLX prefix cache) and a toggle only changes the very end.
+  const skillsText =
+    skills.length > 0
+      ? " Available skills you can load with the skill tool when useful:\n" +
+        skills
+          .map((skill) => `  - ${skill.id} · ${skill.name} · ${skill.description}`)
+          .join("\n")
+      : ""
   // Order matters for oMLX's prefix cache: keep the large, stable content first
   // and the volatile mode clause last, so toggling plan/build only changes the
   // tail of the prompt rather than invalidating the cached prefix.
-  return config.systemPrompt + web + ask + project + mode
+  return config.systemPrompt + web + ask + project + mode + skillsText
 }
 
 export interface Attachment {
@@ -73,6 +84,8 @@ export interface TurnOptions {
   workspace: string
   signal: AbortSignal
   attachments?: Attachment[]
+  // The invocable skills advertised to the model this turn.
+  skills: Skill[]
 }
 
 // Sampling parameters resolved for the active model (global defaults merged
@@ -142,7 +155,7 @@ async function streamOnce(
   assistantId: string,
 ): Promise<{ content: string; finishReason: string; firstTokenAt: number; hadTools: boolean }> {
   const messages: ChatMessage[] = [
-    { role: "system", content: systemPrompt(options.config, store.mode() === "plan", options.workspace) },
+    { role: "system", content: systemPrompt(options.config, store.mode() === "plan", options.workspace, options.skills) },
     ...history,
   ]
   const startedAt = performance.now()
@@ -187,7 +200,7 @@ async function streamOnce(
     {
       model: options.model,
       messages,
-      tools: toolSchemas(options.config.web?.enabled === true, store.mode() === "plan"),
+      tools: toolSchemas(options.config.web?.enabled === true, store.mode() === "plan", options.skills),
       ...samplingParams(options),
     },
     options.signal,
@@ -298,12 +311,13 @@ function diagnosticsCommand(config: RokaruConfig, workspace: string): string {
 }
 
 // A read-only subagent: its own message history, no editing tools, returns text.
+// Subagents can load skills too, so they get the same skills list and tool set.
 async function runSubagent(options: TurnOptions, prompt: string): Promise<string> {
   const messages: ChatMessage[] = [
     {
       role: "system",
       content:
-        systemPrompt(options.config, true, options.workspace) +
+        systemPrompt(options.config, true, options.workspace, options.skills) +
         " You are a subagent: gather the requested information with the read-only tools and return a concise answer. Never modify anything.",
     },
     { role: "user", content: prompt },
@@ -314,7 +328,9 @@ async function runSubagent(options: TurnOptions, prompt: string): Promise<string
     signal: options.signal,
     web: options.config.web,
   }
-  const schemas = toolSchemas(options.config.web?.enabled === true, true).filter((s) => s.function.name !== "task")
+  const schemas = toolSchemas(options.config.web?.enabled === true, true, options.skills).filter(
+    (s) => s.function.name !== "task" && s.function.name !== "skill",
+  )
   for (let round = 0; round < 8; round++) {
     let content = ""
     const calls = new Map<number, { id: string; name: string; args: string }>()
@@ -447,6 +463,53 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
         const parsed = parseArgs(call.args)
         const prompt = String(parsed?.prompt ?? parsed?.description ?? "").trim() || "Investigate and report concisely."
         const result = capResult(redactSecrets(await runSubagent(options, prompt)))
+        store.updateToolPart(assistantId, call.id, { status: "ok", result, durationMs: performance.now() - startedAt })
+        return result
+      } catch (err) {
+        if ((err as Error).name === "AbortError") throw err
+        const result = `error: ${(err as Error).message}`
+        store.updateToolPart(assistantId, call.id, { status: "error", result, durationMs: performance.now() - startedAt })
+        return result
+      }
+    }
+    if (call.name === "skill") {
+      const startedAt = performance.now()
+      const parsed = parseArgs(call.args)
+      const id = String(parsed?.id ?? "").trim()
+      if (id.length === 0) {
+        const result = "error: the skill tool needs an id to load"
+        store.updateToolPart(assistantId, call.id, { status: "error", result, durationMs: performance.now() - startedAt })
+        return result
+      }
+      const skill = options.skills.find((s) => s.id === id)
+      if (!skill) {
+        const result = `error: unknown skill '${id}'`
+        store.updateToolPart(assistantId, call.id, { status: "error", result, durationMs: performance.now() - startedAt })
+        return result
+      }
+      // Permission: allow loads silently, ask prompts, deny rejects.
+      const permission = skillPermission(id, config.skills)
+      if (permission === "deny") {
+        const result = `The user denied permission to load skill '${id}'.`
+        store.updateToolPart(assistantId, call.id, { status: "denied", result, durationMs: performance.now() - startedAt })
+        return result
+      }
+      if (permission === "ask") {
+        const decision = await store.requestPermission(`skill:${id}`, id, false)
+        if (decision === "deny") {
+          const result = `The user denied permission to load skill '${id}'.`
+          store.updateToolPart(assistantId, call.id, { status: "denied", result, durationMs: performance.now() - startedAt })
+          return result
+        }
+      }
+      try {
+        const loaded = loadSkill(skill)
+        const body = redactSecrets(loaded.body)
+        const files = loaded.files.length > 0 ? `\nSupporting files (read as needed):\n${loaded.files.map((f) => `  ${f}`).join("\n")}` : ""
+        const message = `You activated the '${skill.name}' skill. Follow these instructions:\n\n${body}${files}`
+        history.push({ role: "user", content: message })
+        store.addUserMessage(`activated skill: ${skill.name}`, [])
+        const result = capResult(`Loaded skill '${skill.name}'.\n${body.slice(0, 400)}${body.length > 400 ? "\n… (see instructions above)" : ""}`)
         store.updateToolPart(assistantId, call.id, { status: "ok", result, durationMs: performance.now() - startedAt })
         return result
       } catch (err) {
@@ -593,7 +656,10 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
       history.push({ role: "assistant", content: result.content || null, tool_calls: assistantToolCalls })
 
       // Read-only tools can run together; anything that writes or executes waits.
+      // The `skill` tool is read-only in effect but mutates the transcript, so
+      // it must run sequentially too.
       const isReadOnly = (call: { name: string; args: string }) => {
+        if (call.name === "skill") return false
         const tool = getTool(call.name)
         return tool !== undefined && !effectiveDestructive(tool, call.args)
       }

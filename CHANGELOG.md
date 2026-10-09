@@ -3,6 +3,20 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.9.0] - 2026-10-09
+
+### Added
+
+- **Agent skills.** Load reusable instruction packs on demand. A skill is a
+  directory containing a `SKILL.md` (with `name` and `description` in YAML
+  frontmatter), or a single `.md` file. Rokaru discovers them from
+  `~/.config/rokaru/skills/`, the project's `.rokaru/skills/` (workspace up to
+  the git root), and any extra `skills.sources`. A skill with a description is
+  advertised to the model, which loads it by calling the `skill` tool; loading
+  asks first and is controllable with `skills.allow` / `skills.deny`. `/skills`
+  opens a panel listing every skill found. Skills live in RAM only, and the
+  discovered set is wiped on exit.
+
 ## [0.8.1] - 2026-10-08
 
 ### Added

@@ -31,7 +31,7 @@ const checks: [string, boolean][] = [
   ["jump to first lands at top", firstOffset === 0 && topFrame.includes("first message")],
   ["jump to hit scrolls down", lastOffset > 0],
   ["jumped frame shows the hit", jumpedFrame.includes("UNIQUEWORD")],
-  ["nav hint shows position", jumpedFrame.includes("1/1") && jumpedFrame.includes("uniqueword")],
+  ["nav hint shows position", jumpedFrame.includes("find 1/1")],
 ]
 
 const ok = checks.every(([, v]) => v)

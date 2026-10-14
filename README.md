@@ -202,13 +202,17 @@ expander.
 - **`esc`** while the model is working opens an interrupt chooser: *stop now*, or
   *finish the current tool, then stop* (the partial reply is kept either way).
 - **`/clear`** and **`/new`** ask for confirmation before wiping the session.
+- Users and replies carry a coloured header badge and left rail; replayed turns
+  are divided by a heavier rule.
 - The sidebar collapses with **`ctrl+b`** and hides automatically on narrow
-  terminals. While working, the footer shows the phase, tool round, running tools,
-  elapsed time and output tokens.
-- **`/find`** highlights matches in reasoning and tool output as you step with
-  `n`/`p`.
-- **`ctrl+p`** opens the palette, now grouped by section with each action's
-  shortcut shown.
+  terminals. The context bar fills green → amber → red as the window fills (blue
+  is cached), todos show a completion bar, and a session timer sits at the top.
+- While working, the footer shows the phase, tool round, running tools, elapsed
+  time, output tokens, live **tokens/sec** and a rough **time-left** estimate.
+- **`/find`** highlights matches (on an amber background) in reasoning and tool
+  output as you step with `n`/`p`, with the position in the footer.
+- **`ctrl+p`** opens the palette, grouped by section with each action's shortcut
+  shown.
 
 ### MCP servers (optional)
 
@@ -319,9 +323,10 @@ instance.
 ### Themes
 
 `/themes` (alias `/theme`) opens a picker for the built-in palettes (**onyx,
-graphite, glacier, nocturne, lagoon, plum, contrast**) and lets you build a custom
-one. Colours update live, including the whole terminal background; custom themes
-are session-only.
+graphite, glacier, nocturne, lagoon, plum, contrast, ember, blossom, daylight,
+grid**) and lets you build a custom one. Colours update live, including the whole
+terminal background; custom themes are session-only. The list scrolls, and the
+start-screen logo/rain adapt to a light background.
 
 ## Configuration
 

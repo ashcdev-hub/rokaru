@@ -1,12 +1,22 @@
 /** @jsxImportSource @opentui/solid */
-import { For, Show, createEffect, createSignal, untrack } from "solid-js"
+import { For, Show, createEffect, createSignal, onCleanup, onMount, untrack } from "solid-js"
 import { useTimeline } from "@opentui/solid"
 import { getTheme, sg } from "../theme"
-import { contextPercent, gitBranch, mcpServers, metrics, modelLimit, promptTokens, reduceMotion, todos } from "../store"
+import { contextPercent, gitBranch, mcpServers, metrics, modelLimit, promptTokens, reduceMotion, sessionStartedAt, todos } from "../store"
 import { formatCompact, formatInt, formatRate, formatSeconds } from "../metrics"
+import { contextColour } from "../gradient"
 import { VERSION } from "../version"
 
 const BAR_WIDTH = 22
+const TODO_BAR_WIDTH = 10
+
+function formatSession(ms: number): string {
+  const mins = Math.floor(ms / 60000)
+  if (mins < 1) return "just started"
+  if (mins < 60) return `${mins}m`
+  const hours = Math.floor(mins / 60)
+  return `${hours}h ${mins % 60}m`
+}
 
 function Panel(props: { title: string; children: any }) {
   return (
@@ -94,6 +104,27 @@ export function Sidebar(props: { width?: number }) {
     return `${formatCompact(promptTokens())} / ${limitText}`
   }
 
+  // Refresh the session timer periodically (the sidebar is otherwise reactive
+  // only to activity).
+  const [_tick, setTick] = createSignal(0)
+  onMount(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 30_000)
+    onCleanup(() => clearInterval(id))
+  })
+  const sessionAge = () => {
+    _tick()
+    const start = sessionStartedAt()
+    return start > 0 ? formatSession(Date.now() - start) : ""
+  }
+
+  const todoProgress = () => {
+    const list = todos()
+    const done = list.filter((todo) => todo.status === "completed").length
+    const total = list.length
+    const filled = total > 0 ? Math.round((done / total) * TODO_BAR_WIDTH) : 0
+    return { done, total, filled }
+  }
+
   return (
     <box
       width={props.width ?? 32}
@@ -114,6 +145,9 @@ export function Sidebar(props: { width?: number }) {
         <span {...sg(getTheme().dim)}>{` v${VERSION}`}</span>
       </text>
       <text fg={getTheme().dim}>private session</text>
+      <Show when={sessionAge().length > 0}>
+        <text fg={getTheme().dim}>{`⏱ ${sessionAge()}`}</text>
+      </Show>
       <Show when={gitBranch().length > 0}>
         <text fg={getTheme().dim}>{`⎇ ${gitBranch()}`}</text>
       </Show>
@@ -122,7 +156,9 @@ export function Sidebar(props: { width?: number }) {
         <Panel title="Session Context">
           <text>
             <span {...sg(getTheme().blue)}>{"█".repeat(segments().cached)}</span>
-            <span {...sg(getTheme().good)}>{"█".repeat(segments().fresh)}</span>
+            <span {...sg(contextColour(contextPercent(), getTheme().good, getTheme().warn, getTheme().bad))}>
+              {"█".repeat(segments().fresh)}
+            </span>
             <span {...sg(getTheme().track)}>{"░".repeat(segments().rest)}</span>
             <span {...sg(usageColour())}>{` ${Math.round(contextPercent())}%`}</span>
           </text>
@@ -171,6 +207,11 @@ export function Sidebar(props: { width?: number }) {
 
         <Show when={todos().length > 0}>
           <Panel title="Todo">
+            <text>
+              <span {...sg(getTheme().good)}>{"█".repeat(todoProgress().filled)}</span>
+              <span {...sg(getTheme().track)}>{"░".repeat(TODO_BAR_WIDTH - todoProgress().filled)}</span>
+              <span {...sg(getTheme().dim)}>{` ${todoProgress().done}/${todoProgress().total}`}</span>
+            </text>
             <For each={todos()}>
               {(todo) => (
                 <text

@@ -1,5 +1,6 @@
 /** @jsxImportSource @opentui/solid */
 import { For, Show } from "solid-js"
+import { TextAttributes } from "@opentui/core"
 import { getTheme, sg } from "../theme"
 import type { Span } from "../syntax"
 import { CodeLines } from "./Code"
@@ -20,7 +21,7 @@ function inline(text: string): Span[] {
     if (tok.startsWith("`")) spans.push({ text: tok.slice(1, -1), fg: theme.good })
     else if (tok.startsWith("**")) spans.push({ text: tok.slice(2, -2), fg: theme.warn })
     else if (tok.startsWith("__")) spans.push({ text: tok.slice(2, -2), fg: theme.warn })
-    else if (tok.startsWith("~~")) spans.push({ text: tok.slice(2, -2), fg: theme.dim })
+    else if (tok.startsWith("~~")) spans.push({ text: tok.slice(2, -2), fg: theme.dim, strike: true })
     else if (tok.startsWith("[")) {
       const link = tok.match(/\[([^\]]+)\]\(([^)]+)\)/)
       spans.push({ text: link ? link[1] : tok, fg: theme.blue })
@@ -164,7 +165,11 @@ function parseBlocks(md: string): Block[] {
 function Spans(props: { spans: Span[] }) {
   return (
     <text fg={getTheme().body}>
-      <For each={props.spans}>{(span) => <span {...sg(span.fg)}>{span.text}</span>}</For>
+      <For each={props.spans}>
+        {(span) => (
+          <span {...sg(span.fg, undefined, span.strike ? TextAttributes.STRIKETHROUGH : undefined)}>{span.text}</span>
+        )}
+      </For>
     </text>
   )
 }
@@ -178,12 +183,14 @@ function TableView(props: { header: string[]; rows: string[][] }) {
     const s = stripInline(text)
     return s.length > width ? `${s.slice(0, width - 1)}…` : s.padEnd(width)
   }
-  const headerLine = () => props.header.map((h, c) => pad(h, widths()[c])).join(" │ ")
+  const headerLine = () => ` ${props.header.map((h, c) => pad(h, widths()[c])).join(" │ ")} `
   const separator = () => widths().map((w) => "─".repeat(w)).join("─┼─")
   return (
-    <box flexDirection="column">
-      <text fg={getTheme().accent}>
-        <b>{headerLine()}</b>
+    <box flexDirection="column" backgroundColor={getTheme().panelBg} paddingLeft={1} paddingRight={1}>
+      <text>
+        <span {...sg(getTheme().accent, getTheme().panelBorder)}>
+          <b>{headerLine()}</b>
+        </span>
       </text>
       <text fg={getTheme().track}>{separator()}</text>
       <For each={props.rows}>
@@ -230,13 +237,26 @@ export function Markdown(props: { text: string }) {
                     showToast("copied code block")
                   }}
                 >
-                  <text fg={getTheme().dim}>{`${block.lang ? `${block.lang}  ` : ""}click to copy`}</text>
+                  <box flexDirection="row" justifyContent="space-between">
+                    <Show when={block.lang.length > 0} fallback={<text> </text>}>
+                      <text>
+                        <span {...sg(getTheme().body, getTheme().panelBorder)}>{` ${block.lang} `}</span>
+                      </text>
+                    </Show>
+                    <text fg={getTheme().dim}>click to copy</text>
+                  </box>
                   <CodeLines lines={block.lines} />
                 </box>
               )
             case "quote":
               return (
-                <box flexDirection="column" marginBottom={1}>
+                <box
+                  flexDirection="column"
+                  marginBottom={1}
+                  backgroundColor={getTheme().panelBg}
+                  paddingLeft={1}
+                  paddingRight={1}
+                >
                   <For each={block.lines}>
                     {(line) => (
                       <box flexDirection="row">

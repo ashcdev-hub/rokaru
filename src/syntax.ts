@@ -3,6 +3,7 @@ import { getTheme } from "./theme"
 export interface Span {
   text: string
   fg: string
+  strike?: boolean
 }
 
 const KEYWORDS =

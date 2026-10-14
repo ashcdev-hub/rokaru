@@ -11,6 +11,9 @@ import {
   type Theme,
 } from "../theme"
 import { themeCustom, themeCustomRole, themeDraft, themeIndex } from "../store"
+import { windowStart } from "../listWindow"
+
+const VISIBLE_THEMES = 6
 
 function Preview(props: { theme: Theme }) {
   const t = () => props.theme
@@ -46,6 +49,10 @@ export function ThemePanel() {
   const names = () => themeNames()
   const newRow = () => names().length
   const highlighted = () => THEMES[names()[themeIndex()]] ?? getTheme()
+  const start = () => windowStart(themeIndex(), names().length, VISIBLE_THEMES)
+  const visible = () => names().slice(start(), start() + VISIBLE_THEMES)
+  const moreAbove = () => start()
+  const moreBelow = () => Math.max(0, names().length - (start() + VISIBLE_THEMES))
 
   return (
     <box width="100%" height="100%" flexDirection="column" justifyContent="center" alignItems="center">
@@ -64,16 +71,25 @@ export function ThemePanel() {
             <b>themes</b>
           </text>
           <text fg={getTheme().dim}>{""}</text>
-          <For each={names()}>
-            {(name, index) => (
-              <text fg={themeIndex() === index() ? getTheme().good : getTheme().text}>
-                <span {...sg(themeIndex() === index() ? getTheme().good : getTheme().text)}>
-                  {`${themeIndex() === index() ? "▶ " : "  "}${name}`}
-                </span>
-                <span {...sg(getTheme().dim)}>{name === activeThemeName() ? "  ✓" : ""}</span>
-              </text>
-            )}
+          <Show when={moreAbove() > 0}>
+            <text fg={getTheme().dim}>{`  ↑ ${moreAbove()} more`}</text>
+          </Show>
+          <For each={visible()}>
+            {(name, offset) => {
+              const index = () => start() + offset()
+              return (
+                <text fg={themeIndex() === index() ? getTheme().good : getTheme().text}>
+                  <span {...sg(themeIndex() === index() ? getTheme().good : getTheme().text)}>
+                    {`${themeIndex() === index() ? "▶ " : "  "}${name}`}
+                  </span>
+                  <span {...sg(getTheme().dim)}>{name === activeThemeName() ? "  ✓" : ""}</span>
+                </text>
+              )
+            }}
           </For>
+          <Show when={moreBelow() > 0}>
+            <text fg={getTheme().dim}>{`  ↓ ${moreBelow()} more`}</text>
+          </Show>
           <text fg={themeIndex() === newRow() ? getTheme().good : getTheme().dim}>
             <span {...sg(getTheme().accent)}>{"＋ "}</span>
             <span {...sg(themeIndex() === newRow() ? getTheme().good : getTheme().dim)}>

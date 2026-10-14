@@ -112,6 +112,7 @@ export function App() {
 
   onMount(() => {
     installLifecycle(renderer)
+    store.setSessionStartedAt(Date.now())
     store.setWorkspace(workspace)
     learning.configure({
       enabled: config.learning.enabled,

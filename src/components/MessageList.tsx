@@ -9,6 +9,7 @@ import { FadeIn, Spinner } from "./anim"
 import { decorateAssistant } from "../highlight"
 import { getTool } from "../tools"
 import { copyToClipboard } from "../clipboard"
+import { Pill } from "./ui"
 import {
   expandTools,
   findNav,
@@ -246,12 +247,12 @@ function HighlightText(props: { text: string; fg: string; italic?: boolean }) {
     <text fg={props.fg}>
       <Show when={props.italic} fallback={
         <For each={pieces()}>
-          {(piece) => <span {...sg(piece.hit ? getTheme().warn : props.fg)}>{piece.hit ? <b>{piece.text}</b> : piece.text}</span>}
+          {(piece) => <span {...sg(piece.hit ? getTheme().background : props.fg, piece.hit ? getTheme().warn : undefined)}>{piece.hit ? <b>{piece.text}</b> : piece.text}</span>}
         </For>
       }>
         <i>
           <For each={pieces()}>
-            {(piece) => <span {...sg(piece.hit ? getTheme().warn : props.fg)}>{piece.hit ? <b>{piece.text}</b> : piece.text}</span>}
+            {(piece) => <span {...sg(piece.hit ? getTheme().background : props.fg, piece.hit ? getTheme().warn : undefined)}>{piece.hit ? <b>{piece.text}</b> : piece.text}</span>}
           </For>
         </i>
       </Show>
@@ -423,9 +424,19 @@ function ThoughtView(props: { message: UIMessage; text: string }) {
     return ms !== undefined ? `Thought: ${ms.toFixed(1)}s` : "Thinking…"
   }
   return (
-    <box flexDirection="column" marginTop={1} onMouseDown={() => toggleThinking(props.message.id)}>
+    <box
+      flexDirection="column"
+      marginTop={1}
+      border={["left"]}
+      borderStyle="rounded"
+      borderColor={getTheme().warn}
+      backgroundColor={getTheme().panelBg}
+      paddingLeft={1}
+      paddingRight={1}
+      onMouseDown={() => toggleThinking(props.message.id)}
+    >
       <text fg={getTheme().warn}>
-        <span {...sg(getTheme().warn)}>{`${expanded() ? "▾" : "▸"} ${label()}`}</span>
+        <span {...sg(getTheme().warn)}>{`${expanded() ? "▾" : "▸"} 🧠 ${label()}`}</span>
       </text>
       <Show when={expanded()}>
         <HighlightText text={props.text} fg={getTheme().dim} italic />
@@ -455,7 +466,7 @@ function StreamingPart(props: { message: UIMessage; kind: StreamKind; text: stri
 function Separator() {
   const dims = useTerminalDimensions()
   const width = () => Math.max(10, (dims()?.width ?? 80) - sidebarCols() - 4)
-  return <text fg={getTheme().track}>{"─".repeat(width())}</text>
+  return <text fg={getTheme().panelBorder}>{"━".repeat(width())}</text>
 }
 
 function copyMessage(message: UIMessage): void {
@@ -504,18 +515,23 @@ function MessageView(props: { message: UIMessage; streaming: boolean; first: boo
         <box
           flexDirection="column"
           marginBottom={1}
+          border={["left"]}
+          borderStyle="rounded"
+          borderColor={props.message.role === "user" ? getTheme().accent : getTheme().blue}
           backgroundColor={props.message.role === "user" ? getTheme().panelBg : undefined}
-          paddingLeft={props.message.role === "user" ? 1 : 0}
+          paddingLeft={1}
           paddingRight={props.message.role === "user" ? 1 : 0}
           paddingTop={props.message.role === "user" ? 1 : 0}
           paddingBottom={props.message.role === "user" ? 1 : 0}
         >
-          <text
-            fg={props.message.role === "user" ? getTheme().accent : getTheme().blue}
-            onMouseDown={() => copyMessage(props.message)}
-          >
-            <b>{props.message.role === "user" ? "you" : "agent"}</b>
-          </text>
+          <box flexDirection="row" onMouseDown={() => copyMessage(props.message)}>
+            <Pill
+              label={props.message.role === "user" ? "you" : "agent"}
+              glyph={props.message.role === "user" ? "›" : "✦"}
+              fg={getTheme().background}
+              bg={props.message.role === "user" ? getTheme().accent : getTheme().blue}
+            />
+          </box>
           <box flexDirection="column" paddingLeft={1}>
             <For each={items()}>
               {(item) =>

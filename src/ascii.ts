@@ -1,6 +1,8 @@
 import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { spawnSync } from "node:child_process"
+import { getTheme } from "./theme"
+import { mixHex } from "./gradient"
 
 export interface LogoSpan {
   text: string
@@ -232,6 +234,7 @@ export function loadLogo(): LogoRow[] {
 
 // A few representative colours sampled from the logo's gradient (left → right),
 // used to tint the start-screen animation so it matches the logo each load.
+// On light themes the samples are darkened so the rain still contrasts.
 export function logoPalette(): string[] {
   const fgs: string[] = []
   for (const row of loadLogo()) {
@@ -245,6 +248,19 @@ export function logoPalette(): string[] {
   }
   if (uniq.length === 0) return []
   const pick = (t: number) => uniq[Math.max(0, Math.min(uniq.length - 1, Math.round(t * (uniq.length - 1))))]
-  return [pick(0), pick(0.5), pick(1)]
+  const ink = isLightBackground() ? "#1b1f24" : undefined
+  const adapt = (colour: string) => (ink ? mixHex(colour, ink, 0.5) : colour)
+  return [adapt(pick(0)), adapt(pick(0.5)), adapt(pick(1))]
+}
+
+// True when the active theme's background is light, so foreground art needs
+// darkening to stay legible.
+export function isLightBackground(): boolean {
+  const hex = getTheme().background ?? "#000000"
+  const n = parseInt(hex.replace("#", ""), 16)
+  const r = ((n >> 16) & 255) / 255
+  const g = ((n >> 8) & 255) / 255
+  const b = (n & 255) / 255
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.5
 }
 

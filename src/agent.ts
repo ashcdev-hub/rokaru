@@ -106,6 +106,7 @@ export interface TurnOptions {
 // with any per-model override), ready to spread into a chat request.
 function samplingParams(options: TurnOptions) {
   const sampling = resolveSampling(options.config, options.model)
+  store.setOutputLimit(sampling.maxTokens)
   return {
     temperature: sampling.temperature,
     topP: sampling.topP,

@@ -3,6 +3,36 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.11.0] - 2026-10-14
+
+The first of four visual/UX passes: transcript and input polish plus more
+palettes. Behaviour is unchanged; this is about legibility and feedback.
+
+### Added
+
+- **Four new palettes:** `ember` (warm amber), `blossom` (soft pastel dark),
+  `daylight` (light), and `grid` (a second high-contrast option). The
+  start-screen logo/rain adapt to a light background.
+- **Scrollable theme picker** — the list windows around the selection and keeps
+  the "new theme" row pinned, so all palettes fit any terminal.
+- **Session timer** in the sidebar (`⏱ 12m`).
+- **Todo completion bar** (`████░░ 2/5`) above the sidebar's todo list.
+- **Live rate + estimate** in the footer while working: tokens/sec and a rough
+  time-left based on the model's output cap.
+- **Coloured `you`/`agent` header badges** and a per-message left rail.
+
+### Changed
+
+- The **context bar** fills green → amber → red as the window fills; cached
+  tokens stay blue.
+- **Reasoning** blocks get a left border, background tint and a brain glyph.
+- **Markdown:** code blocks show the language as a badge, blockquotes get a
+  background fill, and tables get a shaded header row. `~~strikethrough~~` now
+  renders struck through.
+- **`/find`** highlights matches on an amber background and shows the position in
+  the footer (previously a line above the input).
+- Turns are divided by a heavier rule.
+
 ## [0.10.0] - 2026-10-14
 
 A TUI/UX release: a more informative, keyboard-friendly transcript, live tool

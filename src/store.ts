@@ -82,6 +82,12 @@ export const [turnStartedAt, setTurnStartedAt] = createSignal(0)
 export const [turnRound, setTurnRound] = createSignal(0)
 export const [activeTools, setActiveTools] = createSignal(0)
 
+// Wall-clock start of this session (for the sidebar session timer).
+export const [sessionStartedAt, setSessionStartedAt] = createSignal(0)
+
+// Per-model output token cap for the current turn (for the progress ETA).
+export const [outputLimit, setOutputLimit] = createSignal(0)
+
 // UI preferences resolved from config / environment.
 export const [reduceMotion, setReduceMotion] = createSignal(false)
 export const [sidebarVisible, setSidebarVisible] = createSignal(true)

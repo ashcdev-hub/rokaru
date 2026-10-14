@@ -8,10 +8,12 @@ import {
   activeTools,
   autoApprove,
   contextPercent,
+  findNav,
   gitBranch,
   metrics,
   mode,
   modelLimit,
+  outputLimit,
   reduceMotion,
   status,
   statusDetail,
@@ -59,7 +61,7 @@ export function ProgressBar() {
     return out
   }
 
-  // A single compact activity line: phase · round · tools · elapsed · output.
+  // A single compact activity line: phase · round · tools · elapsed · rate.
   const activity = () => {
     tick()
     const bits: string[] = [statusDetail() || status()]
@@ -69,6 +71,10 @@ export function ProgressBar() {
     if (start > 0) bits.push(formatSeconds((performance.now() - start) / 1000))
     const out = metrics().outputTokens
     if (out > 0) bits.push(`${formatInt(out)} tok`)
+    const tps = metrics().tps
+    if (tps > 0) bits.push(`${tps.toFixed(1)} t/s`)
+    const remaining = outputLimit() - out
+    if (tps > 0 && remaining > 0) bits.push(`~${formatSeconds(remaining / tps)} left`)
     return bits.join(" · ")
   }
 
@@ -80,6 +86,8 @@ export function ProgressBar() {
   const right = () => {
     const parts: string[] = [mode(), context()]
     if (gitBranch().length > 0) parts.push(`⎇ ${gitBranch()}`)
+    const nav = findNav()
+    if (nav) parts.push(`find ${nav.at + 1}/${nav.hits.length}`)
     if (!busy()) parts.push("ctrl+p")
     return parts.join(" · ")
   }

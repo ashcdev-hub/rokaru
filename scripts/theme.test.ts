@@ -21,6 +21,10 @@ function check(name: string, ok: boolean, detail = "") {
 check("default theme is onyx", activeThemeName() === "onyx")
 check("getTheme returns onyx panelBg", getTheme().panelBg === THEMES.onyx.panelBg)
 check("names include builtins", themeNames().includes("glacier") && themeNames().includes("nocturne"))
+check(
+  "names include the new palettes",
+  ["ember", "blossom", "daylight", "grid"].every((name) => themeNames().includes(name)),
+)
 
 check("switch to glacier", setCurrentTheme("glacier") === true && activeThemeName() === "glacier")
 check("getTheme reflects glacier", getTheme().panelBg === THEMES.glacier.panelBg)

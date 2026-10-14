@@ -99,6 +99,19 @@ export const [sessionStartedAt, setSessionStartedAt] = createSignal(0)
 // Per-model output token cap for the current turn (for the progress ETA).
 export const [outputLimit, setOutputLimit] = createSignal(0)
 
+// Session-only input height override (ctrl+↑/↓). Never persisted to config.
+export const [inputHeightOverride, setInputHeightOverride] = createSignal<number | undefined>(undefined)
+
+// In-memory command usage, for the "frequent" section of the / menu. Kept for
+// the whole process (not reset by /new).
+const [commandCounts, setCommandCounts] = createSignal<Record<string, number>>({})
+export function recordCommand(name: string): void {
+  setCommandCounts((prev) => ({ ...prev, [name]: (prev[name] ?? 0) + 1 }))
+}
+export function commandUsage(): Record<string, number> {
+  return commandCounts()
+}
+
 // Bridge so components (e.g. the empty-state quick actions) can invoke a
 // command/prompt that only App can route. App installs the runner on mount.
 let commandRunner: ((text: string) => void) | undefined

@@ -3,6 +3,7 @@ import { Show } from "solid-js"
 import { getTheme, sg } from "../theme"
 import { mode, model, status } from "../store"
 import { Spinner } from "./anim"
+import { Pill } from "./ui"
 
 export function PromptPanel(props: { height?: number; children: any }) {
   const modeLabel = () => (mode() === "plan" ? "Plan" : "Build")
@@ -26,8 +27,8 @@ export function PromptPanel(props: { height?: number; children: any }) {
               <Spinner fg={modeColour()} />
               <text fg={getTheme().dim}> </text>
             </Show>
+            <Pill label={modeLabel()} fg={getTheme().background} bg={modeColour()} />
             <text>
-              <span {...sg(modeColour())}>{modeLabel()}</span>
               <span {...sg(getTheme().dim)}>{"  ·  "}</span>
               <span {...sg(getTheme().text)}>{model() || "no model"}</span>
             </text>

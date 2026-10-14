@@ -17,7 +17,7 @@ import { listModels, streamChat, type ModelInfo } from "./omlx"
 import { CONFIG_DIR, loadConfig, resolveApiKey } from "./config"
 import * as learning from "./learning"
 import { copyToClipboard } from "./clipboard"
-import { COMMANDS, matchCommands, resolveCommandName } from "./commands"
+import { COMMANDS, matchCommands, orderedMenuCommands, resolveCommandName } from "./commands"
 import { imageDataUrl } from "./image"
 import { applyMention, mentionMatches } from "./fileMentions"
 import { friendlyError } from "./errors"
@@ -188,7 +188,7 @@ export function App() {
   const menuMatches = () => {
     const value = store.inputValue()
     if (!value.startsWith("/") || value.includes(" ")) return []
-    return matchCommands(value.slice(1))
+    return orderedMenuCommands(value.slice(1), store.commandUsage())
   }
 
   const showHelp = () => {
@@ -362,6 +362,7 @@ export function App() {
       else store.showToast(`unknown command: /${name}`, "warn")
       return
     }
+    store.recordCommand(spec.name)
     switch (spec.name) {
       case "model": {
         if (arg.length > 0) {
@@ -859,6 +860,16 @@ export function App() {
       const toolId = store.lastRunningToolId()
       if (toolId && store.cancelTool(toolId)) store.showToast("cancelling tool…", "info")
       else store.showToast("no running tool to cancel", "info")
+      return
+    }
+
+    // Resize the prompt (session-only). Some terminals don't report ctrl+arrows.
+    if (key.ctrl && (key.name === "up" || key.name === "down")) {
+      key.preventDefault()
+      const base = store.inputHeightOverride() ?? config.inputHeight
+      const next = Math.max(4, Math.min(20, base + (key.name === "up" ? 1 : -1)))
+      store.setInputHeightOverride(next)
+      store.showToast(`input height: ${next} rows`, "info")
       return
     }
 

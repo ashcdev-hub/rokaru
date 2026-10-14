@@ -3,6 +3,26 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.15.0] - 2026-10-14
+
+Fourth visual/UX pass: prompt and `/` menu polish.
+
+### Added
+
+- **Frequent commands.** The `/` menu shows a `frequent` section of your
+  most-used commands at the top (in-memory, kept for the process). The ordering
+  is shared by the menu and the enter/tab handler, so the highlight and the
+  chosen command always agree.
+- **Prompt resize.** `ctrl+↑`/`ctrl+↓` grow/shrink the input (session-only, 4–20
+  rows, never written to config).
+- **Image chips.** Attached images render as filled chips on your message, and
+  pending images show as chips above the prompt with a "send to attach" hint.
+
+### Changed
+
+- The prompt's mode (`Build`/`Plan`) is now a filled **badge** instead of plain
+  coloured text.
+
 ## [0.14.0] - 2026-10-14
 
 ### Added

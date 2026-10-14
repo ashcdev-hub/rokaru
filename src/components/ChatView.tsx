@@ -1,8 +1,9 @@
 /** @jsxImportSource @opentui/solid */
-import { Show } from "solid-js"
+import { For, Show } from "solid-js"
 import { getTheme } from "../theme"
 import { copyToClipboard } from "../clipboard"
 import { errorSuggestion } from "../errors"
+import { Pill, truncateLabel } from "./ui"
 import * as store from "../store"
 import { InputBox } from "./InputBox"
 import { MessageList } from "./MessageList"
@@ -72,9 +73,17 @@ export function ChatView(props: {
                           <>
                             <Show when={store.pendingImages().length > 0}>
                               <box flexDirection="row" flexShrink={0} paddingLeft={1}>
-                                <text fg={getTheme().accent}>
-                                  {`📎 ${store.pendingImages().map((image) => image.name).join("  ")}  · send to attach`}
-                                </text>
+                                <For each={store.pendingImages()}>
+                                  {(image) => (
+                                    <Pill
+                                      label={truncateLabel(image.name)}
+                                      glyph="🖼"
+                                      fg={getTheme().background}
+                                      bg={getTheme().tool}
+                                    />
+                                  )}
+                                </For>
+                                <text fg={getTheme().dim}>send to attach</text>
                               </box>
                             </Show>
                             <CommandMenu />

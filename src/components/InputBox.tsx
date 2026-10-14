@@ -3,7 +3,7 @@ import { createSignal, onMount, Show } from "solid-js"
 import { defaultTextareaKeyBindings, type KeyBinding, type TextareaRenderable } from "@opentui/core"
 import { usePaste, useTerminalDimensions } from "@opentui/solid"
 import { getTheme } from "../theme"
-import { consumeInputPrefill, inputValue, pastedLineCount, pastedText, questionTyping, setPastedText, sidebarCols, status } from "../store"
+import { consumeInputPrefill, inputHeightOverride, inputValue, pastedLineCount, pastedText, questionTyping, setPastedText, sidebarCols, status } from "../store"
 import { PromptPanel } from "./PromptPanel"
 
 const bindings: KeyBinding[] = [
@@ -43,7 +43,7 @@ export function InputBox(props: {
   let ref: TextareaRenderable | undefined
   const dims = useTerminalDimensions()
   const busy = () => status() !== "idle" && status() !== "error"
-  const maxRows = () => Math.max(MIN_ROWS, props.height ?? DEFAULT_MAX_ROWS)
+  const maxRows = () => Math.max(MIN_ROWS, inputHeightOverride() ?? props.height ?? DEFAULT_MAX_ROWS)
   const [content, setContent] = createSignal("")
 
   usePaste((event: any) => {

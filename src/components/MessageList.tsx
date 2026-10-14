@@ -9,7 +9,7 @@ import { FadeIn, Spinner, ThinkingDots } from "./anim"
 import { decorateAssistant } from "../highlight"
 import { getTool } from "../tools"
 import { copyToClipboard } from "../clipboard"
-import { Pill } from "./ui"
+import { Pill, truncateLabel } from "./ui"
 import {
   expandTools,
   findNav,
@@ -559,7 +559,13 @@ function MessageView(props: { message: UIMessage; streaming: boolean; first: boo
               {(buffer) => <StreamingPart message={props.message} kind={buffer().kind} text={buffer().text} />}
             </Show>
             <Show when={props.message.images && props.message.images.length > 0}>
-              <text fg={getTheme().dim}>{`📎 ${props.message.images!.join("  ")}`}</text>
+              <box flexDirection="row">
+                <For each={props.message.images}>
+                  {(name) => (
+                    <Pill label={truncateLabel(name)} glyph="🖼" fg={getTheme().background} bg={getTheme().tool} />
+                  )}
+                </For>
+              </box>
             </Show>
             <Show when={props.streaming}>
               <Show when={status() === "thinking"} fallback={<StreamingCursor />}>

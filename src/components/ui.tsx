@@ -9,3 +9,8 @@ export function Pill(props: { label: string; fg: string; bg: string; glyph?: str
     </text>
   )
 }
+
+// Shorten a long filename/label for a chip.
+export function truncateLabel(text: string, max = 32): string {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text
+}

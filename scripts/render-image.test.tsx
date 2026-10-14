@@ -27,6 +27,15 @@ const setup = await testRender(() => <ChatView onSubmit={() => {}} inputHeight={
 await setup.flush()
 await new Promise((r) => setTimeout(r, 200))
 await setup.flush()
-console.log(setup.captureCharFrame())
+const frame = setup.captureCharFrame()
+console.log(frame)
+
+const checks: [string, boolean][] = [
+  ["user image chip", frame.includes("🖼") && frame.includes("vision-test.png")],
+  ["pending image chip", frame.includes("screenshot.png") && frame.includes("send to attach")],
+  ["no raw paperclip dump", !frame.includes("📎")],
+]
 setup.renderer.destroy()
-process.exit(0)
+const ok = checks.every(([, v]) => v)
+for (const [name, v] of checks) console.log(`${v ? "PASS" : "FAIL"}  ${name}`)
+process.exit(ok ? 0 : 1)

@@ -48,3 +48,27 @@ export function matchCommands(prefix: string): CommandSpec[] {
       Object.entries(COMMAND_ALIASES).some(([alias, target]) => target === command.name && alias.startsWith(p)),
   )
 }
+
+// The most-used command names (for the "frequent" section), needs-first.
+export function frequentCommandNames(usage: Record<string, number>, limit = 3): string[] {
+  return Object.entries(usage)
+    .filter(([name, count]) => count > 0 && COMMANDS.some((command) => command.name === name))
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, limit)
+    .map(([name]) => name)
+}
+
+// The one ordering both the / menu and the App's enter/tab handling must use, so
+// the highlighted row and the chosen command never disagree. With an empty query
+// the frequent commands float to the top.
+export function orderedMenuCommands(prefix: string, usage: Record<string, number>): CommandSpec[] {
+  const matches = matchCommands(prefix)
+  if (prefix.trim().length !== 0) return matches
+  const frequent = frequentCommandNames(usage)
+  if (frequent.length === 0) return matches
+  const front = frequent
+    .map((name) => matches.find((command) => command.name === name))
+    .filter((command): command is CommandSpec => command !== undefined)
+  const rest = matches.filter((command) => !frequent.includes(command.name))
+  return [...front, ...rest]
+}

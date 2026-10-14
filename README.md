@@ -103,7 +103,8 @@ interrupt (a menu offers **stop now** or **finish the current tool, then
 stop**) · `pgup`/`pgdn` and `shift+↑`/`shift+↓` scroll the transcript ·
 `home`/`end` jump to top/bottom · `ctrl+r` reasoning · `ctrl+o` expand tools ·
 `ctrl+y` copy reply · `ctrl+b` sidebar · `ctrl+x` cancel the running tool ·
-`ctrl+p` palette. Click a `you`/`agent` label or a fenced code block to copy it.
+`ctrl+↑`/`ctrl+↓` resize the prompt · `ctrl+p` palette. Click a
+`you`/`agent` label or a fenced code block to copy it.
 
 ## Privacy & security
 
@@ -230,6 +231,11 @@ expander.
   shown.
 - The empty transcript offers **clickable quick actions** (commands, themes,
   compact, tune, find, files) so there's no blank page on first run.
+- Attached images show as **chips** on your message (and above the prompt while
+  pending, with a "send to attach" hint).
+- The prompt's mode is a small **badge**, and `ctrl+↑`/`ctrl+↓` resize it
+  (session-only). The `/` menu shows a **frequent** section of your most-used
+  commands at the top.
 
 ### MCP servers (optional)
 

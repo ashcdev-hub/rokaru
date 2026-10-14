@@ -11,6 +11,7 @@ import { PromptPanel } from "./PromptPanel"
 import { QuestionPanel } from "./QuestionPanel"
 import { ConfirmPrompt } from "./ConfirmPrompt"
 import { InterruptPanel } from "./InterruptPanel"
+import { FadeIn } from "./anim"
 import { Sidebar } from "./Sidebar"
 import { Toast } from "./Toast"
 import { CommandMenu } from "./CommandMenu"
@@ -95,14 +96,18 @@ export function ChatView(props: {
                       >
                         {(pending) => (
                           <PromptPanel>
-                            <ConfirmPrompt request={pending()} />
+                            <FadeIn>
+                              <ConfirmPrompt request={pending()} />
+                            </FadeIn>
                           </PromptPanel>
                         )}
                       </Show>
                     }
                   >
                     <PromptPanel>
-                      <InterruptPanel />
+                      <FadeIn>
+                        <InterruptPanel />
+                      </FadeIn>
                     </PromptPanel>
                   </Show>
                 }

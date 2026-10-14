@@ -528,7 +528,13 @@ export function App() {
           return
         }
         const controller = new AbortController()
-        void compactHistory(options(controller.signal))
+        store.setStatus("thinking")
+        store.setStatusDetail("summarising conversation")
+        store.showToast("summarising conversation to free context…", "info")
+        void compactHistory(options(controller.signal)).finally(() => {
+          store.setStatus("idle")
+          store.setStatusDetail("")
+        })
         return
       }
     }

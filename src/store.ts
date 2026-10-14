@@ -69,6 +69,17 @@ export const [mentionIndex, setMentionIndex] = createSignal(0)
 export const [palette, setPalette] = createSignal(false)
 export const [paletteIndex, setPaletteIndex] = createSignal(0)
 export const [paletteQuery, setPaletteQuery] = createSignal("")
+
+// Thread view: per-turn collapse state keyed by the turn's first message id.
+// An absent key means the default (older turns collapsed, newest expanded).
+export const [collapsedTurns, setCollapsedTurns] = createSignal<Record<string, boolean>>({})
+export function isTurnCollapsed(key: string, defaultCollapsed: boolean): boolean {
+  const explicit = collapsedTurns()[key]
+  return explicit ?? defaultCollapsed
+}
+export function toggleTurn(key: string, defaultCollapsed: boolean): void {
+  setCollapsedTurns((prev) => ({ ...prev, [key]: !(prev[key] ?? defaultCollapsed) }))
+}
 export const [contextPercent, setContextPercent] = createSignal(0)
 export const [promptTokens, setPromptTokens] = createSignal(0)
 export const [workspace, setWorkspace] = createSignal("")
@@ -559,6 +570,7 @@ export function resetSession(): void {
   setStreamBuffer(undefined)
   setPermission(undefined)
   setQuestion(undefined)
+  setCollapsedTurns({})
   setQuestionTyping(false)
   setConfirmRequest(undefined)
   setInterruptMenu(false)

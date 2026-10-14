@@ -208,8 +208,12 @@ expander.
 - **`esc`** while the model is working opens an interrupt chooser: *stop now*, or
   *finish the current tool, then stop* (the partial reply is kept either way).
 - **`/clear`** and **`/new`** ask for confirmation before wiping the session.
-- Users and replies carry a coloured header badge and left rail; replayed turns
-  are divided by a heavier rule.
+- Messages are grouped into **turns**. Older turns collapse to a one-line
+  summary (`▸ you → agent · 3 tools · 4.2s · 812 tok`); click it to expand. The
+  newest turn stays open. Users and replies carry a coloured header badge and
+  left rail, divided by a heavier rule.
+- While the model works, the prompt shows a spinner and the reasoning block a
+  three-dot pulse; streamed text gets a subtle highlight as it arrives.
 - The sidebar collapses with **`ctrl+b`** and hides automatically on narrow
   terminals. The context bar fills green → amber → red as the window fills (blue
   is cached), todos show a completion bar, and a session timer sits at the top.
@@ -217,6 +221,8 @@ expander.
   time, output tokens, live **tokens/sec** and a rough **time-left** estimate.
 - **`/find`** highlights matches (on an amber background) in reasoning and tool
   output as you step with `n`/`p`, with the position in the footer.
+- **`/compact`** shows a "summarising conversation" indicator while it folds the
+  history into a summary.
 - **`ctrl+p`** opens the palette, grouped by section with each action's shortcut
   shown.
 - The empty transcript offers **clickable quick actions** (commands, themes,

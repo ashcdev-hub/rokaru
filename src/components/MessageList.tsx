@@ -5,7 +5,7 @@ import type { ScrollBoxRenderable } from "@opentui/core"
 import { getTheme, sg } from "../theme"
 import { Markdown } from "./Markdown"
 import { DiffView } from "./Code"
-import { FadeIn, Spinner } from "./anim"
+import { FadeIn, Spinner, ThinkingDots } from "./anim"
 import { decorateAssistant } from "../highlight"
 import { getTool } from "../tools"
 import { copyToClipboard } from "../clipboard"
@@ -13,6 +13,7 @@ import { Pill } from "./ui"
 import {
   expandTools,
   findNav,
+  isTurnCollapsed,
   messages,
   requestCommand,
   setInputPrefill,
@@ -25,10 +26,12 @@ import {
   todos,
   toggleThinking,
   toggleToolExpanded,
+  toggleTurn,
   workspace,
 } from "../store"
 import type { Part, StreamKind, UIMessage } from "../store"
 import { transcriptWindow } from "../transcriptWindow"
+import { groupTurns, turnSummary, type TurnGroup } from "../turns"
 
 const COLLAPSE_LINES = 10
 // Tool results are frequently one enormous line (a JSON blob from an MCP log or
@@ -41,23 +44,22 @@ let transcriptBox: ScrollBoxRenderable | undefined
 export function scrollTranscriptToMessage(index: number): number {
   const box = transcriptBox
   if (!box) return -1
-  // The <Show> empty-state leaves a zero-size slot node behind, so skip
-  // non-rendered nodes instead of assuming a 1:1 child mapping.
-  const rows = box.getChildren().filter((child) => {
-    try {
-      return child.getLayoutNode().getComputedHeight() > 0
-    } catch {
-      return false
-    }
-  })
-  if (rows.length === 0) return -1
-  const child = rows[Math.max(0, Math.min(index, rows.length - 1))]
-  if (!child) return -1
+  const message = messages()[index]
+  if (!message) return -1
+  // Messages may be nested inside a turn block, so resolve by id rather than by
+  // child order, and sum computed tops up to the scrollbox (getComputedTop is
+  // parent-relative for nested nodes).
+  const target = box.findDescendantById(`msg-${message.id}`)
+  if (!target) return -1
   let top = 0
-  try {
-    top = child.getLayoutNode().getComputedTop()
-  } catch {
-    return -1
+  let current: any = target
+  while (current && current !== box) {
+    try {
+      top += current.getLayoutNode().getComputedTop()
+    } catch {
+      return -1
+    }
+    current = current.parent
   }
   box.scrollTop = Math.max(0, top - 2)
   return box.scrollTop
@@ -156,7 +158,14 @@ function toolHeader(name: string, argsRaw: string): { lead: string; text: string
 
 function AssistantText(props: { text: string; streaming: boolean }) {
   return (
-    <Show when={!props.streaming} fallback={<text fg={getTheme().body}>{props.text}</text>}>
+    <Show
+      when={!props.streaming}
+      fallback={
+        <box backgroundColor={getTheme().panelBg}>
+          <text fg={getTheme().body}>{props.text}</text>
+        </box>
+      }
+    >
       <Markdown text={decorateAssistant(props.text)} />
     </Show>
   )
@@ -516,6 +525,7 @@ function MessageView(props: { message: UIMessage; streaming: boolean; first: boo
           </box>
         </Show>
         <box
+          id={`msg-${props.message.id}`}
           flexDirection="column"
           marginBottom={1}
           border={["left"]}
@@ -552,7 +562,9 @@ function MessageView(props: { message: UIMessage; streaming: boolean; first: boo
               <text fg={getTheme().dim}>{`📎 ${props.message.images!.join("  ")}`}</text>
             </Show>
             <Show when={props.streaming}>
-              <StreamingCursor />
+              <Show when={status() === "thinking"} fallback={<StreamingCursor />}>
+                <ThinkingDots />
+              </Show>
             </Show>
             <Show when={props.message.role === "assistant" && !props.streaming}>
               <TurnMeta message={props.message} />
@@ -561,6 +573,34 @@ function MessageView(props: { message: UIMessage; streaming: boolean; first: boo
         </box>
       </Show>
     </FadeIn>
+  )
+}
+
+function TurnView(props: {
+  group: TurnGroup
+  expanded: boolean
+  defaultCollapsed: boolean
+  streamingId?: string
+  divider: boolean
+}) {
+  return (
+    <box flexDirection="column">
+      <Show when={props.divider}>
+        <Separator />
+      </Show>
+      <text onMouseDown={() => toggleTurn(props.group.key, props.defaultCollapsed)}>
+        <span {...sg(getTheme().dim)}>{props.expanded ? "▾ " : "▸ "}</span>
+        <span {...sg(getTheme().accent)}>{turnSummary(props.group.messages, formatDuration)}</span>
+        <Show when={!props.expanded}>
+          <span {...sg(getTheme().dim)}>{"   (click to expand)"}</span>
+        </Show>
+      </text>
+      <Show when={props.expanded}>
+        <For each={props.group.messages}>
+          {(message) => <MessageView message={message} streaming={props.streamingId === message.id} first={true} />}
+        </For>
+      </Show>
+    </box>
   )
 }
 
@@ -612,6 +652,7 @@ export function MessageList() {
   }
 
   const windowed = createMemo(() => transcriptWindow(messages(), RENDER_WINDOW, Boolean(findNav())))
+  const groups = createMemo(() => groupTurns(windowed().list))
 
   return (
     <scrollbox
@@ -630,14 +671,20 @@ export function MessageList() {
           {`… ${windowed().hidden} earlier messages hidden (/find to search, /compact to trim)`}
         </text>
       </Show>
-      <For each={windowed().list}>
-        {(message, index) => (
-          <MessageView
-            message={message}
-            streaming={streamingId() === message.id}
-            first={windowed().hidden + index() === 0}
-          />
-        )}
+      <For each={groups()}>
+        {(group, index) => {
+          const defaultCollapsed = () => index() < groups().length - 1
+          const expanded = () => Boolean(findNav()) || !isTurnCollapsed(group.key, defaultCollapsed())
+          return (
+            <TurnView
+              group={group}
+              expanded={expanded()}
+              defaultCollapsed={defaultCollapsed()}
+              streamingId={streamingId()}
+              divider={index() > 0}
+            />
+          )
+        }}
       </For>
     </scrollbox>
   )

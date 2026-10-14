@@ -18,6 +18,19 @@ export function Spinner(props: { fg?: string }) {
   return <text fg={props.fg ?? getTheme().accent}>{SPINNER_FRAMES[frame()]}</text>
 }
 
+// Three-dot "thinking" pulse, distinct from the streaming caret.
+const DOT_FRAMES = [".  ", ".. ", "...", ".. ", ".  "]
+
+export function ThinkingDots(props: { fg?: string }) {
+  const [frame, setFrame] = createSignal(reduceMotion() ? 2 : 0)
+  onMount(() => {
+    if (reduceMotion()) return
+    const id = setInterval(() => setFrame((f) => (f + 1) % DOT_FRAMES.length), 220)
+    onCleanup(() => clearInterval(id))
+  })
+  return <text fg={props.fg ?? getTheme().dim}>{DOT_FRAMES[frame()]}</text>
+}
+
 // Fade a newly-mounted subtree in (opacity 0 → 1, eased). With reduced motion
 // the content renders immediately at full opacity.
 export function FadeIn(props: { children: any; duration?: number }) {

@@ -3,6 +3,28 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.13.0] - 2026-10-14
+
+Third visual/UX pass: the transcript gains a conversation thread view and
+phase-aware motion. Behaviour is unchanged.
+
+### Added
+
+- **Thread view.** Messages are grouped into turns; older turns collapse to a
+  one-line summary (`you → agent · 3 tools · 4.2s · 812 tok`) that expands on
+  click, while the newest stays open. `/find` expands every turn so matches stay
+  reachable, and message anchors are preserved (scroll-to-message is by id now).
+- **Thinking animation.** A three-dot pulse while thinking, switching to the
+  streaming caret once text arrives.
+- **Compact feedback.** `/compact` shows a "summarising conversation" indicator
+  (and footer phase) while it runs.
+
+### Changed
+
+- The prompt shows a **spinner beside the mode label** while busy.
+- **Streamed text** gets a subtle background highlight as it arrives.
+- The interrupt and confirm panels **fade in**.
+
 ## [0.12.1] - 2026-10-14
 
 ### Changed

@@ -14,6 +14,9 @@ import {
   expandTools,
   findNav,
   messages,
+  requestCommand,
+  setInputPrefill,
+  setPalette,
   showToast,
   sidebarCols,
   status,
@@ -562,6 +565,14 @@ function MessageView(props: { message: UIMessage; streaming: boolean; first: boo
 }
 
 function EmptyState() {
+  const quick: { label: string; hint: string; run: () => void }[] = [
+    { label: "commands", hint: "ctrl+p", run: () => setPalette(true) },
+    { label: "themes", hint: "restyle", run: () => requestCommand("/themes") },
+    { label: "compact", hint: "free context", run: () => requestCommand("/compact") },
+    { label: "tune", hint: "model advice", run: () => requestCommand("/tune") },
+    { label: "find", hint: "/find …", run: () => setInputPrefill("/find ") },
+    { label: "files", hint: "@ path", run: () => setInputPrefill("@") },
+  ]
   return (
     <box flexDirection="column" paddingLeft={2} paddingTop={1} alignItems="flex-start">
       <text fg={getTheme().blue}>
@@ -569,7 +580,18 @@ function EmptyState() {
       </text>
       <text fg={getTheme().dim}>type a message and press enter</text>
       <text fg={getTheme().dim}>/ for commands · ctrl+p palette · tab plan/build</text>
-      <text fg={getTheme().dim}>pgup/pgdn scroll · click you/agent to copy · click a code block to copy</text>
+      <box flexDirection="column" marginTop={1}>
+        <text fg={getTheme().dim}>quick actions (click)</text>
+        <For each={quick}>
+          {(action) => (
+            <text onMouseDown={action.run}>
+              <span {...sg(getTheme().accent)}>{"▸ "}</span>
+              <span {...sg(getTheme().text)}>{action.label}</span>
+              <span {...sg(getTheme().dim)}>{`   ${action.hint}`}</span>
+            </text>
+          )}
+        </For>
+      </box>
       <text fg={getTheme().dim}>{`workspace · ${workspace() || "?"}`}</text>
     </box>
   )

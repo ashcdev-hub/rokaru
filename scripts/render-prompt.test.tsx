@@ -20,10 +20,27 @@ await chat.flush()
 
 const panelHeight = (frame: string): number => {
   const rows = frame.split("\n")
-  const bottoms = rows.map((r, i) => (r.includes("╰") ? i : -1)).filter((i) => i >= 0)
-  const tops = rows.map((r, i) => (r.includes("╭") ? i : -1)).filter((i) => i >= 0)
-  if (bottoms.length === 0 || tops.length < 2) return -1
-  return bottoms[0]! - tops[1]! + 1
+  const width = Math.max(...rows.map((r) => r.length), 1)
+  // Only the left column (the sidebar has its own boxes now).
+  const cut = rows.map((r) => r.slice(0, Math.floor(width * 0.6)))
+  const anchor = cut.findIndex((r) => r.includes("Build"))
+  if (anchor < 0) return -1
+  let top = -1
+  for (let i = anchor; i >= 0; i--) {
+    if (cut[i].includes("╭")) {
+      top = i
+      break
+    }
+  }
+  let bottom = -1
+  for (let i = anchor; i < cut.length; i++) {
+    if (cut[i].includes("╰")) {
+      bottom = i
+      break
+    }
+  }
+  if (top < 0 || bottom < 0) return -1
+  return bottom - top + 1
 }
 
 const emptyFrame = chat.captureCharFrame()
@@ -167,7 +184,7 @@ const checks: [string, boolean][] = [
   ["over-max content collapses to notice", overCapTextareaEmpty && overCapStashLines === 12 && overCapNotice],
   ["idle box has no helper text", idleClean],
   ["busy status stays in the box", busyHasStatus],
-  ["permission shows in the prompt", permFrame.includes("permission · bash") && permFrame.includes("$ rm -rf ./tmp && echo hi")],
+  ["permission shows in the prompt", permFrame.includes("permission") && permFrame.includes("bash") && permFrame.includes("$ rm -rf ./tmp && echo hi")],
   ["permission options intact", permFrame.includes("allow once") && permFrame.includes("always allow “rm …”")],
   ["question takes over the prompt", qFrame.includes("question") && qFrame.includes("Pick a colour")],
   ["question options listed", qFrame.includes("1. Red") && qFrame.includes("2. Blue") && qFrame.includes("type your own answer")],

@@ -3,6 +3,31 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.12.0] - 2026-10-14
+
+Second visual/UX pass: panels and prompts become structured cards. Behaviour is
+unchanged.
+
+### Added
+
+- **Searchable model picker** used by both the startup screen and `/model`: type
+  to filter (`keyboard`-driven), `↑`/`↓` to move, current model marked, with a
+  windowed list.
+- **Error card** with a one-line suggested fix (`errorSuggestion`) and
+  click-to-copy.
+- **Clickable quick actions** on the empty transcript (commands, themes, compact,
+  tune, find, files).
+- **MCP status widget** in the sidebar: a status dot, server name and tool count.
+
+### Changed
+
+- The **sidebar** is now rounded, titled cards (Session Context, Model Speed, MCP,
+  Todo) instead of bare label columns.
+- The **permission prompt** is a card with a boxed action preview and the
+  decisions as highlighted rows.
+- The **question** tool is a card with checkbox rows and a custom-answer row.
+- The **`@` file menu** is a floating card showing the query and match count.
+
 ## [0.11.0] - 2026-10-14
 
 The first of four visual/UX passes: transcript and input polish plus more

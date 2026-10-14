@@ -1,6 +1,8 @@
 /** @jsxImportSource @opentui/solid */
 import { Show } from "solid-js"
 import { getTheme } from "../theme"
+import { copyToClipboard } from "../clipboard"
+import { errorSuggestion } from "../errors"
 import * as store from "../store"
 import { InputBox } from "./InputBox"
 import { MessageList } from "./MessageList"
@@ -28,8 +30,30 @@ export function ChatView(props: {
         <box flexGrow={1} flexDirection="column" overflow="hidden">
           <MessageList />
           <Show when={store.error()}>
-            <box border borderStyle="rounded" borderColor={getTheme().bad} paddingLeft={1} flexShrink={0}>
-              <text fg={getTheme().bad}>{`error: ${store.error()}`}</text>
+            <box
+              flexDirection="column"
+              flexShrink={0}
+              border
+              borderStyle="rounded"
+              borderColor={getTheme().bad}
+              backgroundColor={getTheme().panelBg}
+              title="error"
+              titleColor={getTheme().bad}
+              paddingLeft={1}
+              paddingRight={1}
+              onMouseDown={() => {
+                const message = store.error()
+                if (message) {
+                  copyToClipboard(message)
+                  store.showToast("copied error")
+                }
+              }}
+            >
+              <text fg={getTheme().bad}>{store.error()}</text>
+              <Show when={errorSuggestion(store.error() ?? "")}>
+                {(hint) => <text fg={getTheme().dim}>{`→ ${hint()}`}</text>}
+              </Show>
+              <text fg={getTheme().dim}>click to copy</text>
             </box>
           </Show>
           <Show

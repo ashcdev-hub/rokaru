@@ -1,44 +1,79 @@
 /** @jsxImportSource @opentui/solid */
-import { For } from "solid-js"
+import { For, Show } from "solid-js"
 import { getTheme, sg } from "../theme"
 import type { ModelInfo } from "../omlx"
 import { formatCompact } from "../metrics"
+import { filterModels } from "../modelFilter"
+import { windowStart } from "../listWindow"
+import { pickerIndex, pickerQuery } from "../store"
 
-export function ModelPicker(props: { models: ModelInfo[]; onSelect: (model: ModelInfo) => void; width?: number }) {
-  const width = () => props.width ?? 60
+const VISIBLE_MODELS = 8
+
+// A filterable model picker card, shared by the startup screen and /model.
+export function ModelPicker(props: {
+  models: ModelInfo[]
+  onSelect: (model: ModelInfo) => void
+  title?: string
+  current?: string
+  error?: string
+}) {
+  const list = () => filterModels(props.models, pickerQuery())
+  const index = () => Math.min(pickerIndex(), Math.max(0, list().length - 1))
+  const start = () => windowStart(index(), list().length, VISIBLE_MODELS)
+  const visible = () => list().slice(start(), start() + VISIBLE_MODELS)
+  const moreAbove = () => start()
+  const moreBelow = () => Math.max(0, list().length - (start() + VISIBLE_MODELS))
+
   return (
     <box flexDirection="column" alignItems="center">
-      <text fg={getTheme().text}>choose a model (oMLX must already be running):</text>
-      <text fg={getTheme().text}>{""}</text>
-      <select
-        focused={true}
-        width={width()}
-        height={Math.min(props.models.length * 2 + 1, 12)}
-        options={props.models.map((m) => ({
-          name: m.id,
-          description: `context ${formatCompact(m.maxModelLen)}`,
-          value: m.id,
-        }))}
-        onSelect={(index: number, option: any) => {
-          const chosen = props.models.find((m) => m.id === (option?.value ?? m.id)) ?? props.models[index]
-          if (chosen) props.onSelect(chosen)
-        }}
-      />
-      <text fg={getTheme().text}>{""}</text>
-      <text fg={getTheme().dim}>↑/↓ select · enter confirm</text>
-    </box>
-  )
-}
-
-export function ModelList(props: { models: ModelInfo[] }) {
-  return (
-    <For each={props.models}>
-      {(m) => (
-        <text fg={getTheme().dim}>
-          <span {...sg(getTheme().blue)}>{m.id}</span>
-          <span {...sg(getTheme().dim)}>{`  ${formatCompact(m.maxModelLen)}`}</span>
+      <box
+        flexDirection="column"
+        width={68}
+        border
+        borderStyle="rounded"
+        borderColor={getTheme().accent}
+        backgroundColor={getTheme().panelBg}
+        paddingLeft={1}
+        paddingRight={1}
+      >
+        <text fg={getTheme().accent}>
+          <b>{props.title ?? "choose a model"}</b>
         </text>
-      )}
-    </For>
+        <text fg={getTheme().dim}>oMLX must already be running</text>
+        <text>
+          <span {...sg(getTheme().dim)}>{"search: "}</span>
+          <span {...sg(getTheme().text)}>{pickerQuery()}</span>
+          <span {...sg(getTheme().accent)}>▌</span>
+        </text>
+        <Show when={list().length > 0} fallback={<text fg={getTheme().warn}>(no models match)</text>}>
+          <Show when={moreAbove() > 0}>
+            <text fg={getTheme().dim}>{`  ↑ ${moreAbove()} more`}</text>
+          </Show>
+          <For each={visible()}>
+            {(model, offset) => {
+              const row = () => start() + offset()
+              const selected = () => index() === row()
+              return (
+                <text fg={selected() ? getTheme().good : getTheme().text}>
+                  <span {...sg(selected() ? getTheme().good : getTheme().dim)}>{selected() ? "▶ " : "  "}</span>
+                  <span {...sg(getTheme().text)}>{model.id}</span>
+                  <span {...sg(getTheme().dim)}>{`  ${formatCompact(model.maxModelLen)}`}</span>
+                  <Show when={model.id === props.current}>
+                    <span {...sg(getTheme().good)}>{"  ✓"}</span>
+                  </Show>
+                </text>
+              )
+            }}
+          </For>
+          <Show when={moreBelow() > 0}>
+            <text fg={getTheme().dim}>{`  ↓ ${moreBelow()} more`}</text>
+          </Show>
+        </Show>
+        <Show when={props.error}>
+          <text fg={getTheme().warn}>{props.error}</text>
+        </Show>
+        <text fg={getTheme().dim}>type to filter · ↑/↓ select · enter confirm · esc cancel</text>
+      </box>
+    </box>
   )
 }

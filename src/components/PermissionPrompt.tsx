@@ -146,67 +146,88 @@ export function PermissionBody(props: { request: PermissionRequest }) {
   }
 
   return (
-    <>
-      <text fg={getTheme().warn}>
-        <b>{`permission · ${name()}`}</b>
-      </text>
+    <box flexDirection="column">
       <box
         flexDirection="column"
+        border
+        borderStyle="rounded"
+        borderColor={getTheme().warn}
         backgroundColor={getTheme().panelBg}
+        title="permission"
+        titleColor={getTheme().warn}
         paddingLeft={1}
         paddingRight={1}
-        marginTop={1}
       >
-        <Show
-          when={name() === "bash"}
-          fallback={
-            <Show
-              when={name() === "edit_file"}
-              fallback={
-                <Show
-                  when={name() === "write_file"}
-                  fallback={
-                    <Show
-                      when={name() === "replace_in_files"}
-                      fallback={
-                        <Show
-                          when={name() === "mcp_call"}
-                          fallback={<Summary name={name()} args={args()} raw={props.request.args} />}
-                        >
-                          <McpCallPreview args={args()} />
-                        </Show>
-                      }
-                    >
-                      <ReplacePreview args={args()} />
-                    </Show>
-                  }
-                >
-                  <WritePreview path={String(args().path ?? "")} content={String(args().content ?? "")} />
-                </Show>
-              }
-            >
-              <EditPreview
-                path={String(args().path ?? "")}
-                oldString={String(args().old_string ?? "")}
-                newString={String(args().new_string ?? "")}
-              />
-            </Show>
-          }
+        <text fg={getTheme().text}>{name()}</text>
+        <box
+          flexDirection="column"
+          border
+          borderStyle="rounded"
+          borderColor={getTheme().panelBorder}
+          backgroundColor={getTheme().panelBg}
+          marginTop={1}
+          paddingLeft={1}
+          paddingRight={1}
         >
-          <CommandPreview command={String(args().command ?? props.request.args)} />
-        </Show>
+          <Show
+            when={name() === "bash"}
+            fallback={
+              <Show
+                when={name() === "edit_file"}
+                fallback={
+                  <Show
+                    when={name() === "write_file"}
+                    fallback={
+                      <Show
+                        when={name() === "replace_in_files"}
+                        fallback={
+                          <Show
+                            when={name() === "mcp_call"}
+                            fallback={<Summary name={name()} args={args()} raw={props.request.args} />}
+                          >
+                            <McpCallPreview args={args()} />
+                          </Show>
+                        }
+                      >
+                        <ReplacePreview args={args()} />
+                      </Show>
+                    }
+                  >
+                    <WritePreview path={String(args().path ?? "")} content={String(args().content ?? "")} />
+                  </Show>
+                }
+              >
+                <EditPreview
+                  path={String(args().path ?? "")}
+                  oldString={String(args().old_string ?? "")}
+                  newString={String(args().new_string ?? "")}
+                />
+              </Show>
+            }
+          >
+            <CommandPreview command={String(args().command ?? props.request.args)} />
+          </Show>
+        </box>
+        <text fg={getTheme().text}>{""}</text>
+        <For each={PERMISSION_DECISIONS}>
+          {(decision, index) => {
+            const selected = () => permissionChoice() === index()
+            return (
+              <text>
+                <span
+                  {...sg(
+                    selected() ? getTheme().background : getTheme().dim,
+                    selected() ? getTheme().good : undefined,
+                  )}
+                >
+                  {`${selected() ? " ▶ " : "   "}${labelFor(decision)} `}
+                </span>
+              </text>
+            )
+          }}
+        </For>
+        <text fg={getTheme().dim}>↑/↓ choose · enter confirm · y/a/A/n quick</text>
       </box>
-      <text fg={getTheme().text}>{""}</text>
-      <For each={PERMISSION_DECISIONS}>
-        {(decision, index) => (
-          <text fg={permissionChoice() === index() ? getTheme().good : getTheme().dim}>
-            <span {...sg(permissionChoice() === index() ? getTheme().good : getTheme().dim)}>
-              {`${permissionChoice() === index() ? "▶ " : "  "}${labelFor(decision)}`}
-            </span>
-          </text>
-        )}
-      </For>
-      <text fg={getTheme().dim}>↑/↓ choose · enter confirm · y/a/A/n quick</text>
-    </>
+    </box>
   )
 }

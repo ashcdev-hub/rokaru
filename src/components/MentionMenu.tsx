@@ -15,20 +15,28 @@ export function MentionMenu() {
           flexShrink={0}
           border
           borderStyle="rounded"
-          borderColor={getTheme().track}
+          borderColor={getTheme().accent}
+          backgroundColor={getTheme().panelBg}
           paddingLeft={1}
           paddingRight={1}
         >
+          <text>
+            <span {...sg(getTheme().dim)}>{"@ "}</span>
+            <span {...sg(getTheme().accent)}>{match().query || "…"}</span>
+            <span {...sg(getTheme().dim)}>{`   ${match().files.length} match${match().files.length === 1 ? "" : "es"}`}</span>
+          </text>
           <For each={match().files}>
-            {(file, index) => (
-              <text fg={mentionIndex() === index() ? getTheme().good : getTheme().dim}>
-                <span {...sg(mentionIndex() === index() ? getTheme().good : getTheme().dim)}>
-                  {`${mentionIndex() === index() ? "▶ " : "  "}@${file}`}
-                </span>
-              </text>
-            )}
+            {(file, index) => {
+              const selected = () => mentionIndex() === index()
+              return (
+                <text>
+                  <span {...sg(selected() ? getTheme().good : getTheme().dim)}>{`${selected() ? "▶ " : "  "}· `}</span>
+                  <span {...sg(selected() ? getTheme().text : getTheme().dim)}>{file}</span>
+                </text>
+              )
+            }}
           </For>
-          <text fg={getTheme().dim}>tab to insert · ↑/↓ to choose</text>
+          <text fg={getTheme().dim}>tab to insert · ↑/↓ to choose · esc cancel</text>
         </box>
       )}
     </Show>

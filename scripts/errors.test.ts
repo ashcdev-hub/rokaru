@@ -1,4 +1,4 @@
-import { friendlyError } from "../src/errors"
+import { friendlyError, errorSuggestion } from "../src/errors"
 import { isContextOverflow } from "../src/agent"
 
 let pass = 0
@@ -46,6 +46,11 @@ check("abort is reported plainly", abort === "aborted", abort)
 
 const other = friendlyError(new Error("something odd happened"), ctx)
 check("unknown errors pass through unchanged", other === "something odd happened", other)
+
+check("suggestion for connection failure", /oMLX/.test(errorSuggestion(refused) ?? ""), errorSuggestion(refused))
+check("suggestion for context overflow", /compact/i.test(errorSuggestion(context) ?? ""), errorSuggestion(context))
+check("suggestion for missing model", /\/model/.test(errorSuggestion(notFound) ?? ""), errorSuggestion(notFound))
+check("no suggestion for unknown errors", errorSuggestion(other) === undefined)
 
 console.log(`\n${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

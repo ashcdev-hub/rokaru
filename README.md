@@ -150,13 +150,19 @@ choices over time. It is on by default and never changes anything without you.
 
 `read_file`, `list_dir`, `glob`, `grep`, `view_image`, `task`, `todo_write` and
 `question` run automatically; `write_file`, `edit_file`, `replace_in_files` and
-`bash` ask first. Choose **allow once**, **always allow** (for the rest of the
-session) or **deny** with `↑`/`↓` and `enter` (or `y`/`a`/`n`). The prompt
-previews what will run (a `$` block for `bash`, a diff for edits), and tool output
-is scanned for credential shapes and masked before it reaches the model.
+`bash` ask first. The request appears as a card with a preview box (a `$` block
+for `bash`, a diff for edits) and the choices as highlighted rows — **allow
+once**, **always allow** (for the rest of the session) or **deny** with
+`↑`/`↓` and `enter` (or `y`/`a`/`n`). Tool output is scanned for credential
+shapes and masked before it reaches the model.
 
-Type `@` in the prompt to pick a workspace file by name (fuzzy, ignores
-`.git`/`node_modules`); **Tab** inserts the path.
+Type `@` in the prompt to open a floating file card (fuzzy match on the current
+query, ignoring `.git`/`node_modules`); **Tab** inserts the path. The `question`
+tool is likewise a card: pick a row with `↑↓`/`1-6`, `enter` to answer, `esc` to
+dismiss, or choose the last row to type your own answer.
+
+If a turn fails, the error shows as a card with a one-line **suggestion** for
+what to try next; click it to copy the message.
 
 Consecutive read-only calls are grouped into one `N read-only calls` row (click to
 expand), so a turn that reads many files stays compact. `bash` streams its output
@@ -213,6 +219,10 @@ expander.
   output as you step with `n`/`p`, with the position in the footer.
 - **`ctrl+p`** opens the palette, grouped by section with each action's shortcut
   shown.
+- The empty transcript offers **clickable quick actions** (commands, themes,
+  compact, tune, find, files) so there's no blank page on first run.
+- The startup and **`/model`** pickers are searchable cards: type to filter,
+  `↑`/`↓` to move, `enter` to choose, `esc` to cancel a switch.
 
 ### MCP servers (optional)
 

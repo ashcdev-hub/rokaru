@@ -20,10 +20,19 @@ function formatSession(ms: number): string {
 
 function Panel(props: { title: string; children: any }) {
   return (
-    <box flexDirection="column" flexShrink={0} marginBottom={1}>
-      <text fg={getTheme().text}>
-        <b>{props.title}</b>
-      </text>
+    <box
+      flexDirection="column"
+      flexShrink={0}
+      marginBottom={1}
+      border
+      borderStyle="rounded"
+      borderColor={getTheme().track}
+      backgroundColor={getTheme().panelBg}
+      title={props.title}
+      titleColor={getTheme().text}
+      paddingLeft={1}
+      paddingRight={1}
+    >
       {props.children}
     </box>
   )
@@ -131,9 +140,6 @@ export function Sidebar(props: { width?: number }) {
       flexDirection="column"
       flexShrink={0}
       overflow="hidden"
-      border
-      borderStyle="rounded"
-      borderColor={getTheme().track}
       paddingLeft={1}
       paddingRight={1}
       paddingTop={1}
@@ -178,29 +184,33 @@ export function Sidebar(props: { width?: number }) {
         <Show when={mcpServers().length > 0}>
           <Panel title="MCP">
             <For each={mcpServers()}>
-              {(server) => (
-                <text
-                  fg={
-                    server.status === "connected"
-                      ? getTheme().good
-                      : server.status === "error"
-                        ? getTheme().bad
-                        : server.status === "connecting"
-                          ? getTheme().accent
-                          : getTheme().dim
-                  }
-                >
-                  {`${
-                    server.status === "connected"
-                      ? "✓"
-                      : server.status === "error"
-                        ? "✗"
-                        : server.status === "connecting"
-                          ? "…"
-                          : "○"
-                  } ${server.name}${server.status === "connected" ? ` ${server.tools}` : ""}`}
-                </text>
-              )}
+              {(server) => {
+                const colour = () =>
+                  server.status === "connected"
+                    ? getTheme().good
+                    : server.status === "error"
+                      ? getTheme().bad
+                      : server.status === "connecting"
+                        ? getTheme().accent
+                        : getTheme().dim
+                const dot = () =>
+                  server.status === "connected"
+                    ? "●"
+                    : server.status === "error"
+                      ? "✗"
+                      : server.status === "connecting"
+                        ? "◌"
+                        : "○"
+                return (
+                  <text>
+                    <span {...sg(colour())}>{`${dot()} `}</span>
+                    <span {...sg(getTheme().text)}>{server.name}</span>
+                    <span {...sg(getTheme().dim)}>
+                      {server.status === "connected" ? `  ${server.tools} tools` : server.status === "error" ? "  error" : ""}
+                    </span>
+                  </text>
+                )
+              }}
             </For>
           </Panel>
         </Show>

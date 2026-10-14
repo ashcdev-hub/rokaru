@@ -20,6 +20,7 @@ import { copyToClipboard } from "./clipboard"
 import { COMMANDS, matchCommands, resolveCommandName } from "./commands"
 import { imageDataUrl } from "./image"
 import { applyMention, mentionMatches } from "./fileMentions"
+import { filterModels } from "./modelFilter"
 import { friendlyError } from "./errors"
 import { listSnapshots, redoLast, undoLast, sessionChanges, revertChange } from "./undo"
 import { connectServer, disconnectServer } from "./mcp"
@@ -103,6 +104,7 @@ export function App() {
         return
       }
       store.setModels(models)
+      store.resetPicker()
       setPhase("pick")
     } catch (err) {
       setLoadError(friendlyError(err, { baseURL: config.baseURL }))
@@ -113,6 +115,7 @@ export function App() {
   onMount(() => {
     installLifecycle(renderer)
     store.setSessionStartedAt(Date.now())
+    store.setCommandRunner((text) => submit(text))
     store.setWorkspace(workspace)
     learning.configure({
       enabled: config.learning.enabled,
@@ -137,6 +140,50 @@ export function App() {
   const busy = () => {
     const s = store.status()
     return s === "thinking" || s === "streaming" || s === "tool" || s === "permission"
+  }
+
+  // Model picker (startup pick phase and /model switch): type to filter,
+  // arrows to move, enter to choose, esc to cancel a switch.
+  const handlePickerKey = (key: any): void => {
+    const list = filterModels(store.models(), store.pickerQuery())
+    const clamped = Math.min(store.pickerIndex(), Math.max(0, list.length - 1))
+    if (key.name === "escape") {
+      if (store.switchingModel()) {
+        store.setSwitchingModel(false)
+        store.resetPicker()
+      }
+      return
+    }
+    if (key.name === "up") {
+      store.setPickerIndex(Math.max(0, clamped - 1))
+      return
+    }
+    if (key.name === "down") {
+      store.setPickerIndex(Math.min(Math.max(0, list.length - 1), clamped + 1))
+      return
+    }
+    if (key.name === "return" || key.name === "enter") {
+      const chosen = list[clamped]
+      if (chosen) {
+        if (store.switchingModel()) switchTo(chosen)
+        else chooseModel(chosen)
+      }
+      return
+    }
+    if (key.name === "backspace" || key.name === "delete") {
+      store.setPickerQuery(store.pickerQuery().slice(0, -1))
+      store.setPickerIndex(0)
+      return
+    }
+    if (key.name === "space") {
+      store.setPickerQuery(store.pickerQuery() + " ")
+      store.setPickerIndex(0)
+      return
+    }
+    if (!key.ctrl && !key.meta && typeof key.sequence === "string" && key.sequence.length === 1 && key.sequence >= " ") {
+      store.setPickerQuery(store.pickerQuery() + key.sequence)
+      store.setPickerIndex(0)
+    }
   }
 
   // Close the interrupt chooser if the turn finishes on its own.
@@ -368,6 +415,7 @@ export function App() {
           if (match) applyModel(match)
           else store.showToast(`no model matching “${arg}”`, "warn")
         } else {
+          store.resetPicker()
           store.setSwitchingModel(true)
         }
         return
@@ -560,6 +608,7 @@ export function App() {
       run: () => {
         store.setPalette(false)
         if (command.name === "model") {
+          store.resetPicker()
           store.setSwitchingModel(true)
         } else if (command.name === "image" || command.name === "find") {
           store.setInputPrefill(`/${command.name} `)
@@ -815,6 +864,11 @@ export function App() {
       return
     }
 
+    if (phase() === "pick" || store.switchingModel()) {
+      handlePickerKey(key)
+      return
+    }
+
     if (key.ctrl && key.name === "r") {
       key.preventDefault()
       store.setShowReasoning(!store.showReasoning())
@@ -992,14 +1046,6 @@ export function App() {
           store.showToast(`reverted ${entry.path}`)
           if (next.length === 0) store.setChangesPanel(false)
         }
-      }
-      return
-    }
-
-    if (store.switchingModel()) {
-      if (key.name === "escape") {
-        key.preventDefault()
-        store.setSwitchingModel(false)
       }
       return
     }

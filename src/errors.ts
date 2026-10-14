@@ -37,3 +37,15 @@ export function friendlyError(error: unknown, context: ErrorContext = {}): strin
   }
   return raw
 }
+
+// A short "what to try next" hint for a (already-friendly) error message.
+export function errorSuggestion(message: string): string | undefined {
+  const lower = message.toLowerCase()
+  if (lower.includes("cannot reach omlx")) return "Start oMLX, then retry."
+  if (lower.includes("did not respond in time")) return "The model may still be loading — wait a moment and retry."
+  if (lower.includes("api key")) return "Set ROKARU_OMLX_KEY or check the macOS Keychain entry, then retry."
+  if (lower.includes("does not have") && lower.includes("loaded")) return "Use /model to choose a model that's loaded in oMLX."
+  if (lower.includes("out of memory")) return "Close other apps, pick a smaller model, or lower its context window in oMLX."
+  if (lower.includes("too big for this model's context")) return "Use /compact, or start a new chat."
+  return undefined
+}

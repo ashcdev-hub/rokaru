@@ -10,6 +10,9 @@ export interface ToolContext {
   onDiff?: (diff: DiffLine[]) => void
   // Optional sink for an image (data URL) a tool wants the model to see.
   onImage?: (dataUrl: string) => void
+  // Optional sink for a tool's partial output while it runs (e.g. bash stdout),
+  // so the transcript can show progress before the call completes.
+  onOutput?: (chunk: string) => void
 }
 
 export interface ToolDef {

@@ -4,6 +4,7 @@ import { useTerminalDimensions } from "@opentui/solid"
 import { getTheme } from "../theme"
 import { logoPalette } from "../ascii"
 import { isClearedByCentre } from "../startupLayout"
+import { reduceMotion } from "../store"
 
 // Single-width glyphs so column alignment is preserved.
 const GLYPHS = "01<>|/\\+=*:-·•".split("")
@@ -48,6 +49,7 @@ function fadeColour(palette: string[], distance: number): string {
 // model list (the select renderable doesn't reliably draw above the animation),
 // and the clearance follows the content as the model list grows.
 export function StartupBackground(props: { clearRows?: number; clearCols?: number } = {}) {
+  if (reduceMotion()) return null
   const dimensions = useTerminalDimensions()
   const width = () => dimensions()?.width ?? 80
   const height = () => dimensions()?.height ?? 24

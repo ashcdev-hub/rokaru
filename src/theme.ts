@@ -130,6 +130,26 @@ const BUILTIN_THEMES: Record<string, Theme> = {
     panelBg: "#191724",
     panelBorder: "#312e41",
   },
+  // Maximum-contrast palette for bright rooms, projectors and low-quality
+  // displays. Enabled with ui.highContrast or the NO_COLOR env var.
+  contrast: {
+    text: "#ffffff",
+    body: "#ffffff",
+    dim: "#c2cad6",
+    good: "#00ff88",
+    warn: "#ffd400",
+    bad: "#ff5f5f",
+    track: "#46536a",
+    accent: "#00e5ff",
+    blue: "#39b6ff",
+    tool: "#d9a6ff",
+    build: "#ffd400",
+    plan: "#39b6ff",
+    meter: "#00e5ff",
+    background: "#000000",
+    panelBg: "#08090c",
+    panelBorder: "#8593aa",
+  },
 }
 
 // Live registry: built-ins plus any custom themes added this session.

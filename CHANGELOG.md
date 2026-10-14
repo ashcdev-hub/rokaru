@@ -3,6 +3,52 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.10.0] - 2026-10-14
+
+A TUI/UX release: a more informative, keyboard-friendly transcript, live tool
+feedback, and a few safety and discoverability improvements. Everything stays
+local and RAM-only.
+
+### Added
+
+- **Live `bash` output.** `bash` streams stdout/stderr into its tool panel while it
+  runs instead of buffering until the call returns, so long builds and test runs
+  show progress as they go.
+- **Per-tool cancel.** `ctrl+x` cancels the currently running tool (e.g. a runaway
+  `bash`) without aborting the whole turn.
+- **`/retry`.** Re-run your last message and regenerate the reply (also in the
+  `ctrl+p` palette).
+- **`/changes`.** A panel listing every file edited this session, with a per-file
+  diff preview and revert, built on the in-memory undo snapshots.
+- **Interrupt chooser.** `esc` while the model is working now offers *stop now* vs
+  *finish the current tool, then stop*; the partial reply is kept either way.
+- **Confirmation for `/clear` and `/new`,** which wipe the (unrecoverable)
+  RAM-only session.
+- **Keyboard transcript scrolling** (`pgup`/`pgdn`, `shift+↑`/`shift+↓`,
+  `home`/`end`), alongside the scrollbar as a position indicator.
+- **Collapsible sidebar.** `ctrl+b` toggles it; it auto-hides on narrow terminals.
+- **Per-turn metadata.** Each reply ends with a subtle `time · duration · tokens`
+  line.
+- **Reduced motion & high contrast.** `ui.reduceMotion` and `ui.highContrast`
+  config, a new `contrast` palette, and `NO_COLOR` to enable both.
+- **Startup retry.** A failed launch shows the oMLX URL it tried and `r` to retry.
+- **Palette grouping + shortcuts.** `ctrl+p` groups actions by section and shows
+  each action's key, so `ctrl+r`/`ctrl+o`/`ctrl+y` are discoverable.
+
+### Changed
+
+- **Grouped read-only tool calls.** Consecutive reads/searches collapse into one
+  `N read-only calls` row (click to expand) instead of one bordered panel each.
+- **Richer status bar.** While a turn runs, the footer shows the phase, tool round,
+  running-tool count, elapsed time and output tokens; the context gauge shows
+  `ctx --` when the model reports no context length.
+- **Click-to-copy.** Click a `you`/`agent` label to copy that message, or a fenced
+  code block to copy it.
+- **Sharper `/find`.** Matches are now highlighted in reasoning and tool output
+  while stepping with `n`/`p` (those areas were already searched).
+- **Tool panels** show a `▸`/`▾` expander so the click-to-expand affordance is
+  visible.
+
 ## [0.9.0] - 2026-10-09
 
 ### Added

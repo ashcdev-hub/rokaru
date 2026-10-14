@@ -17,6 +17,7 @@ import * as store from "./store"
 
 let history: ChatMessage[] = []
 let warnedContext = false
+let softStop = false
 
 export function resetHistory(): void {
   for (const message of history) {
@@ -25,8 +26,21 @@ export function resetHistory(): void {
   }
   history = []
   warnedContext = false
+  softStop = false
   clearWebAllowlist()
   clearSnapshots()
+}
+
+// "Finish the current tool, then stop": the loop checks this at each round
+// boundary and exits cleanly instead of hard-aborting mid-flight.
+export function requestSoftStop(): void {
+  softStop = true
+}
+export function clearSoftStop(): void {
+  softStop = false
+}
+export function isSoftStopRequested(): boolean {
+  return softStop
 }
 
 // AGENTS.md from the workspace, injected into the system prompt (cached).
@@ -385,6 +399,10 @@ async function runSubagent(options: TurnOptions, prompt: string): Promise<string
 export async function runTurn(options: TurnOptions, userText: string): Promise<void> {
   const { config } = options
   const turnStart = performance.now()
+  softStop = false
+  store.setTurnStartedAt(turnStart)
+  store.setTurnRound(0)
+  store.setActiveTools(0)
   const attachments = options.attachments ?? []
   if (attachments.length > 0) {
     const parts: ContentPart[] = []
@@ -552,11 +570,19 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
     }
     store.setStatus("tool")
     store.setStatusDetail(call.name)
-    store.updateToolPart(assistantId, call.id, { status: "running" })
+    store.updateToolPart(assistantId, call.id, { status: "running", result: "", live: true })
     const startedAt = performance.now()
+    // A per-call abort so a single stuck tool (e.g. a runaway bash) can be
+    // cancelled from the transcript without aborting the whole turn.
+    const callAbort = new AbortController()
+    const onTurnAbort = () => callAbort.abort()
+    if (options.signal.aborted) callAbort.abort()
+    options.signal.addEventListener("abort", onTurnAbort, { once: true })
+    store.registerToolCancel(call.id, () => callAbort.abort())
     try {
       const callCtx = {
         ...baseCtx,
+        signal: callAbort.signal,
         onDiff: (diff: import("./diff").DiffLine[]) =>
           store.updateToolPart(assistantId, call.id, {
             diff: diff.map((line) => ({ ...line, text: redactSecrets(line.text) })),
@@ -566,24 +592,41 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
           list.push(dataUrl)
           callImages.set(call.id, list)
         },
+        onOutput: (chunk: string) => store.appendToolOutput(assistantId, call.id, redactSecrets(chunk)),
       }
       const result = capResult(redactSecrets(await tool.run(parseArgs(call.args), callCtx)))
       if (tool.name === "write_file" || tool.name === "edit_file" || tool.name === "replace_in_files") modified = true
       store.updateToolPart(assistantId, call.id, {
         status: "ok",
         result,
+        live: false,
         durationMs: performance.now() - startedAt,
       })
       return result
     } catch (err) {
-      if ((err as Error).name === "AbortError") throw err
+      if ((err as Error).name === "AbortError") {
+        // A real turn abort propagates; a per-tool cancel reports and continues.
+        if (options.signal.aborted) throw err
+        const result = "cancelled by user"
+        store.updateToolPart(assistantId, call.id, {
+          status: "error",
+          result,
+          live: false,
+          durationMs: performance.now() - startedAt,
+        })
+        return result
+      }
       const result = `error: ${redactSecrets((err as Error).message)}`
       store.updateToolPart(assistantId, call.id, {
         status: "error",
         result,
+        live: false,
         durationMs: performance.now() - startedAt,
       })
       return result
+    } finally {
+      options.signal.removeEventListener("abort", onTurnAbort)
+      store.unregisterToolCancel(call.id)
     }
   }
 
@@ -599,14 +642,25 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
     // Bound total tool rounds so a confused model can't spin forever.
     for (;;) {
       round += 1
+      store.setTurnRound(round)
       if (config.tools.maxRounds > 0 && round > config.tools.maxRounds) {
         store.addInfoMessage(`stopped after ${config.tools.maxRounds} tool rounds.`)
         store.setStatus("idle")
         store.setStatusDetail("")
         return
       }
+      // "Finish the current tool, then stop" is honoured at each round boundary.
+      if (softStop) {
+        softStop = false
+        store.addInfoMessage("stopped after the current step.")
+        store.setStatus("idle")
+        store.setStatusDetail("")
+        return
+      }
       store.setStatus("thinking")
       store.setStatusDetail("prefill")
+      const roundStartedAt = performance.now()
+      const roundStartedWall = Date.now()
       const assistantId = store.startAssistantMessage()
       toolCalls.clear()
 
@@ -632,6 +686,12 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
           await new Promise((resolve) => setTimeout(resolve, 400 * attempt))
         }
       }
+
+      store.setMessageMeta(assistantId, {
+        startedAt: roundStartedWall,
+        elapsedMs: performance.now() - roundStartedAt,
+        tokens: estimateTokens(result.content),
+      })
 
       const ordered = [...toolCalls.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v)
 
@@ -667,6 +727,7 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
       const sequential = ordered.filter((call) => !isReadOnly(call))
 
       const results = new Map<string, string>()
+      store.setActiveTools(ordered.length)
       await Promise.all(
         concurrent.map(async (call) => {
           results.set(call.id, await executeCall(assistantId, call))
@@ -675,6 +736,7 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
       for (const call of sequential) {
         results.set(call.id, await executeCall(assistantId, call))
       }
+      store.setActiveTools(0)
 
       for (const call of ordered) {
         history.push({ role: "tool", tool_call_id: call.id, name: call.name, content: results.get(call.id) ?? "" })
@@ -737,6 +799,7 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
     store.setStatusDetail("")
     store.setError(friendlyError(error, { baseURL: options.baseURL, model: options.model }))
   } finally {
+    store.setActiveTools(0)
     if (!aborted) {
       const sampling = resolveSampling(config, options.model)
       recordTurn({
@@ -754,6 +817,45 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
       })
     }
   }
+}
+
+function extractUserTurn(message: ChatMessage): { text: string; attachments: Attachment[] } {
+  if (typeof message.content === "string") return { text: message.content, attachments: [] }
+  if (Array.isArray(message.content)) {
+    const text = message.content
+      .filter((part): part is ContentPart & { type: "text" } => part.type === "text")
+      .map((part) => part.text)
+      .join("\n")
+    const attachments = message.content
+      .filter((part): part is ContentPart & { type: "image_url" } => part.type === "image_url")
+      .map((part, index) => ({ name: `image ${index + 1}`, dataUrl: part.image_url.url }))
+    return { text, attachments }
+  }
+  return { text: "", attachments: [] }
+}
+
+// Re-run the most recent turn: drop that user message (and everything the model
+// produced after it) and run it again, e.g. after a flubbed local-model reply.
+export async function retryLastTurn(options: TurnOptions): Promise<void> {
+  let index = -1
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].role === "user") {
+      index = i
+      break
+    }
+  }
+  if (index === -1) {
+    store.showToast("nothing to retry", "warn")
+    return
+  }
+  const { text, attachments } = extractUserTurn(history[index])
+  if (text.trim().length === 0 && attachments.length === 0) {
+    store.showToast("nothing to retry", "warn")
+    return
+  }
+  history = history.slice(0, index)
+  store.dropFromLastUserMessage()
+  await runTurn({ ...options, attachments }, text)
 }
 
 // Replace the conversation with a model-written summary to reclaim context.

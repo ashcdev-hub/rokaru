@@ -3,7 +3,22 @@ import { createEffect, createSignal, onCleanup, Show } from "solid-js"
 import { useTerminalDimensions } from "@opentui/solid"
 import { homedir } from "node:os"
 import { getTheme, sg } from "../theme"
-import { contextPercent, autoApprove, gitBranch, mode, status, statusDetail, workspace } from "../store"
+import { formatInt, formatSeconds } from "../metrics"
+import {
+  activeTools,
+  autoApprove,
+  contextPercent,
+  gitBranch,
+  metrics,
+  mode,
+  modelLimit,
+  reduceMotion,
+  status,
+  statusDetail,
+  turnRound,
+  turnStartedAt,
+  workspace,
+} from "../store"
 
 const MAX_WIDTH = 16
 
@@ -19,7 +34,7 @@ export function ProgressBar() {
   const dimensions = useTerminalDimensions()
 
   const termWidth = () => Math.max(20, dimensions()?.width ?? 80)
-  const barWidth = () => Math.max(6, Math.min(MAX_WIDTH, termWidth() - 78))
+  const barWidth = () => Math.max(6, Math.min(MAX_WIDTH, termWidth() - 84))
 
   const busy = () => {
     const s = status()
@@ -27,13 +42,14 @@ export function ProgressBar() {
   }
 
   createEffect(() => {
-    if (!busy()) return
+    if (!busy() || reduceMotion()) return
     const id = setInterval(() => setTick((t) => t + 1), 80)
     onCleanup(() => clearInterval(id))
   })
 
   const cells = () => {
     const width = barWidth()
+    if (reduceMotion()) return "▁".repeat(Math.min(width, 8))
     const position = (tick() % (width + 6)) - 3
     let out = ""
     for (let i = 0; i < width; i++) {
@@ -43,9 +59,26 @@ export function ProgressBar() {
     return out
   }
 
+  // A single compact activity line: phase · round · tools · elapsed · output.
+  const activity = () => {
+    tick()
+    const bits: string[] = [statusDetail() || status()]
+    if (turnRound() > 1) bits.push(`round ${turnRound()}`)
+    if (activeTools() > 0) bits.push(`${activeTools()} tool${activeTools() === 1 ? "" : "s"}`)
+    const start = turnStartedAt()
+    if (start > 0) bits.push(formatSeconds((performance.now() - start) / 1000))
+    const out = metrics().outputTokens
+    if (out > 0) bits.push(`${formatInt(out)} tok`)
+    return bits.join(" · ")
+  }
+
+  const context = () => {
+    if (modelLimit() > 0) return `${Math.round(contextPercent())}%`
+    return "ctx --"
+  }
+
   const right = () => {
-    const parts: string[] = [mode()]
-    if (contextPercent() > 0) parts.push(`${Math.round(contextPercent())}%`)
+    const parts: string[] = [mode(), context()]
     if (gitBranch().length > 0) parts.push(`⎇ ${gitBranch()}`)
     if (!busy()) parts.push("ctrl+p")
     return parts.join(" · ")
@@ -72,7 +105,7 @@ export function ProgressBar() {
           }
         >
           <text fg={getTheme().meter}>{cells()}</text>
-          <text fg={getTheme().dim}>{`  ${statusDetail() || status()}   esc interrupt`}</text>
+          <text fg={getTheme().dim}>{`  ${activity()}   esc stop`}</text>
         </Show>
         <Show when={autoApprove()}>
           <text fg={getTheme().warn}>{"  ⚠ allow-all "}</text>

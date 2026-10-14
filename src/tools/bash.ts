@@ -43,8 +43,16 @@ export const bashTool: ToolDef = {
       let stderr = ""
       const timer = setTimeout(() => child.kill("SIGKILL"), DEFAULT_TIMEOUT_MS)
 
-      child.stdout.on("data", (chunk) => (stdout += chunk.toString()))
-      child.stderr.on("data", (chunk) => (stderr += chunk.toString()))
+      child.stdout.on("data", (chunk) => {
+        const text = chunk.toString()
+        stdout += text
+        ctx.onOutput?.(text)
+      })
+      child.stderr.on("data", (chunk) => {
+        const text = chunk.toString()
+        stderr += text
+        ctx.onOutput?.(text)
+      })
       child.on("error", (err) => {
         clearTimeout(timer)
         rejectPromise(err)

@@ -6,14 +6,30 @@ import { paletteIndex } from "../store"
 export interface PaletteAction {
   label: string
   description: string
+  category?: string
+  shortcut?: string
 }
 
 export function filterPaletteActions<T extends PaletteAction>(actions: T[], query: string): T[] {
   const q = query.trim().toLowerCase()
   if (q.length === 0) return actions
   return actions.filter((action) =>
-    `${action.label.replace(/^\//, "")} ${action.description}`.toLowerCase().includes(q),
+    `${action.label.replace(/^\//, "")} ${action.description} ${action.category ?? ""}`.toLowerCase().includes(q),
   )
+}
+
+function groupActions(actions: PaletteAction[]): { category: string; items: { action: PaletteAction; index: number }[] }[] {
+  const groups: { category: string; items: { action: PaletteAction; index: number }[] }[] = []
+  actions.forEach((action, index) => {
+    const category = action.category ?? ""
+    let group = groups.find((entry) => entry.category === category)
+    if (!group) {
+      group = { category, items: [] }
+      groups.push(group)
+    }
+    group.items.push({ action, index })
+  })
+  return groups
 }
 
 export function CommandPalette(props: { actions: PaletteAction[]; query: string; onPick: (index: number) => void }) {
@@ -21,7 +37,7 @@ export function CommandPalette(props: { actions: PaletteAction[]; query: string;
     <box width="100%" height="100%" flexDirection="column" justifyContent="center" alignItems="center">
       <box
         flexDirection="column"
-        width={64}
+        width={72}
         border
         borderStyle="rounded"
         borderColor={getTheme().accent}
@@ -37,14 +53,26 @@ export function CommandPalette(props: { actions: PaletteAction[]; query: string;
           <span {...sg(getTheme().dim)}>▌</span>
         </text>
         <Show when={props.actions.length > 0} fallback={<text fg={getTheme().dim}>(no matches)</text>}>
-          <For each={props.actions}>
-            {(action, index) => (
-              <text fg={paletteIndex() === index() ? getTheme().good : getTheme().dim}>
-                <span {...sg(paletteIndex() === index() ? getTheme().good : getTheme().dim)}>
-                  {`${paletteIndex() === index() ? "▶ " : "  "}${action.label}`}
-                </span>
-                <span {...sg(getTheme().dim)}>{`  ${action.description}`}</span>
-              </text>
+          <For each={groupActions(props.actions)}>
+            {(group) => (
+              <>
+                <Show when={group.category.length > 0}>
+                  <text fg={getTheme().meter}>{group.category}</text>
+                </Show>
+                <For each={group.items}>
+                  {(item) => (
+                    <text fg={paletteIndex() === item.index ? getTheme().good : getTheme().dim}>
+                      <span {...sg(paletteIndex() === item.index ? getTheme().good : getTheme().dim)}>
+                        {`${paletteIndex() === item.index ? "▶ " : "  "}${item.action.label}`}
+                      </span>
+                      <span {...sg(getTheme().dim)}>{`  ${item.action.description}`}</span>
+                      <Show when={item.action.shortcut}>
+                        <span {...sg(getTheme().blue)}>{`  [${item.action.shortcut}]`}</span>
+                      </Show>
+                    </text>
+                  )}
+                </For>
+              </>
             )}
           </For>
         </Show>

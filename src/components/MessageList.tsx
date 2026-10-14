@@ -7,10 +7,14 @@ import { Markdown } from "./Markdown"
 import { DiffView } from "./Code"
 import { FadeIn, Spinner } from "./anim"
 import { decorateAssistant } from "../highlight"
+import { getTool } from "../tools"
+import { copyToClipboard } from "../clipboard"
 import {
   expandTools,
   findNav,
   messages,
+  showToast,
+  sidebarCols,
   status,
   streamBuffer,
   thinkingVisible,
@@ -59,6 +63,19 @@ export function scrollTranscriptToBottom(): void {
   const box = transcriptBox
   if (!box) return
   box.scrollTop = Math.max(0, box.scrollHeight)
+}
+
+// Keyboard scrolling for the transcript (mouse wheel otherwise).
+export function scrollTranscriptBy(lines: number): void {
+  transcriptBox?.scrollBy(lines, "absolute")
+}
+
+export function scrollTranscriptPage(direction: number): void {
+  transcriptBox?.scrollBy(direction * 0.9, "viewport")
+}
+
+export function scrollTranscriptToTop(): void {
+  if (transcriptBox) transcriptBox.scrollTop = 0
 }
 
 function collapse(text: string, max: number, expanded: boolean): string {
@@ -141,6 +158,107 @@ function AssistantText(props: { text: string; streaming: boolean }) {
   )
 }
 
+// Read/search tools that can be collapsed into a single transcript row when
+// they run back-to-back. Mutating tools, and the interactive ones (question,
+// todo_write) are always shown on their own.
+const GROUPABLE_TOOLS = new Set([
+  "read_file",
+  "list_dir",
+  "glob",
+  "grep",
+  "view_image",
+  "web_search",
+  "web_fetch",
+])
+
+function isGroupableTool(part: Part): part is Extract<Part, { kind: "tool" }> {
+  if (part.kind !== "tool") return false
+  if (GROUPABLE_TOOLS.has(part.name)) return true
+  if (part.name.startsWith("mcp__")) {
+    const tool = getTool(part.name)
+    return tool !== undefined && !tool.destructive
+  }
+  return false
+}
+
+type RenderItem = { kind: "part"; part: Part } | { kind: "group"; parts: Extract<Part, { kind: "tool" }>[] }
+
+// Collapse consecutive read-only tool calls into one group so a turn that reads
+// eight files doesn't render eight bordered panels.
+function groupParts(parts: Part[]): RenderItem[] {
+  const items: RenderItem[] = []
+  let run: Extract<Part, { kind: "tool" }>[] = []
+  const flush = () => {
+    if (run.length === 0) return
+    if (run.length === 1) items.push({ kind: "part", part: run[0] })
+    else items.push({ kind: "group", parts: run })
+    run = []
+  }
+  for (const part of parts) {
+    if (isGroupableTool(part)) {
+      run.push(part)
+    } else {
+      flush()
+      items.push({ kind: "part", part })
+    }
+  }
+  flush()
+  return items
+}
+
+// The plain text of a message, for click-to-copy and search highlighting.
+function messageText(message: UIMessage): string {
+  return message.parts
+    .map((part) =>
+      part.kind === "text" || part.kind === "reasoning"
+        ? part.text
+        : part.kind === "tool"
+          ? part.result
+          : "",
+    )
+    .join("\n")
+    .trim()
+}
+
+// Renders text with occurrences of the active /find query highlighted.
+function HighlightText(props: { text: string; fg: string; italic?: boolean }) {
+  const query = () => findNav()?.query?.trim() ?? ""
+  const pieces = () => {
+    const q = query()
+    if (q.length === 0) return [{ text: props.text, hit: false }]
+    const haystack = props.text.toLowerCase()
+    const needle = q.toLowerCase()
+    const out: { text: string; hit: boolean }[] = []
+    let from = 0
+    while (from < props.text.length) {
+      const at = haystack.indexOf(needle, from)
+      if (at === -1) {
+        out.push({ text: props.text.slice(from), hit: false })
+        break
+      }
+      if (at > from) out.push({ text: props.text.slice(from, at), hit: false })
+      out.push({ text: props.text.slice(at, at + q.length), hit: true })
+      from = at + q.length
+    }
+    return out
+  }
+  return (
+    <text fg={props.fg}>
+      <Show when={props.italic} fallback={
+        <For each={pieces()}>
+          {(piece) => <span {...sg(piece.hit ? getTheme().warn : props.fg)}>{piece.hit ? <b>{piece.text}</b> : piece.text}</span>}
+        </For>
+      }>
+        <i>
+          <For each={pieces()}>
+            {(piece) => <span {...sg(piece.hit ? getTheme().warn : props.fg)}>{piece.hit ? <b>{piece.text}</b> : piece.text}</span>}
+          </For>
+        </i>
+      </Show>
+    </text>
+  )
+}
+
 function StreamingCursor() {
   const [on, setOn] = createSignal(true)
   onMount(() => {
@@ -196,7 +314,21 @@ function ToolView(props: { message: UIMessage; part: Extract<Part, { kind: "tool
     if (part.durationMs !== undefined && part.status !== "denied" && part.status !== "running") {
       bits.push(formatDuration(part.durationMs))
     }
+    if (part.status === "running") bits.push("ctrl+x cancel")
     return bits.length > 0 ? `  ${bits.join(" · ")}` : ""
+  }
+
+  const canExpand = () => (part.diff?.length ?? 0) > 0 || result().length > 0
+
+  // While a tool is streaming its output (e.g. a long bash run), show the tail
+  // so the newest lines are visible; otherwise collapse the head as before.
+  const visibleResult = () => {
+    const text = result()
+    if (part.status === "running" && part.live) {
+      const lines = text.split("\n")
+      return lines.length > COLLAPSE_LINES ? `…\n${lines.slice(-COLLAPSE_LINES).join("\n")}` : text
+    }
+    return collapse(text, COLLAPSE_LINES, expanded())
   }
 
   return (
@@ -212,6 +344,9 @@ function ToolView(props: { message: UIMessage; part: Extract<Part, { kind: "tool
       onMouseDown={() => toggleToolExpanded(props.message.id, part.id)}
     >
       <box flexDirection="row">
+        <Show when={canExpand()}>
+          <text fg={getTheme().dim}>{expanded() ? "▾ " : "▸ "}</text>
+        </Show>
         <Show
           when={part.status === "running"}
           fallback={<text fg={header().colour}>{`${header().lead}  `}</text>}
@@ -226,13 +361,56 @@ function ToolView(props: { message: UIMessage; part: Extract<Part, { kind: "tool
         when={part.diff && part.diff.length > 0}
         fallback={
           <Show when={result().length > 0}>
-            <text fg={part.status === "error" || part.status === "denied" ? getTheme().bad : getTheme().dim}>
-              {collapse(result(), COLLAPSE_LINES, expanded())}
-            </text>
+            <HighlightText
+              text={visibleResult()}
+              fg={part.status === "error" || part.status === "denied" ? getTheme().bad : getTheme().dim}
+            />
           </Show>
         }
       >
         <DiffView lines={part.diff!} />
+      </Show>
+    </box>
+  )
+}
+
+function ToolGroupView(props: { message: UIMessage; parts: Extract<Part, { kind: "tool" }>[] }) {
+  const first = () => props.parts[0]
+  const expanded = () => Boolean(first().expanded) || expandTools()
+  const running = () => props.parts.some((part) => part.status === "running")
+  const errored = () => props.parts.some((part) => part.status === "error")
+  const summary = () => {
+    const labels = props.parts.map((part) => toolHeader(part.name, part.args).text)
+    const shown = labels.slice(0, 3).join(" · ")
+    return labels.length > 3 ? `${shown} +${labels.length - 3}` : shown
+  }
+  const borderColour = () =>
+    errored() ? getTheme().bad : running() ? getTheme().accent : getTheme().panelBorder
+  return (
+    <box
+      flexDirection="column"
+      marginTop={1}
+      border
+      borderStyle="rounded"
+      borderColor={borderColour()}
+      backgroundColor={getTheme().panelBg}
+      paddingLeft={1}
+      paddingRight={1}
+      onMouseDown={() => toggleToolExpanded(props.message.id, first().id)}
+    >
+      <box flexDirection="row">
+        <text fg={getTheme().dim}>{expanded() ? "▾ " : "▸ "}</text>
+        <Show when={running()} fallback={<text fg={getTheme().blue}>{"→  "}</text>}>
+          <Spinner fg={getTheme().blue} />
+          <text fg={getTheme().blue}>{"  "}</text>
+        </Show>
+        <text fg={getTheme().text}>{`${props.parts.length} read-only calls`}</text>
+        <text fg={getTheme().dim}>{`  ${summary()}`}</text>
+      </box>
+      <Show when={expanded()}>
+        <box flexDirection="column">
+          <For each={props.parts}>{(part) => <ToolView message={props.message} part={part} />}</For>
+        </box>
       </Show>
     </box>
   )
@@ -250,9 +428,7 @@ function ThoughtView(props: { message: UIMessage; text: string }) {
         <span {...sg(getTheme().warn)}>{`${expanded() ? "▾" : "▸"} ${label()}`}</span>
       </text>
       <Show when={expanded()}>
-        <text fg={getTheme().dim}>
-          <i>{props.text}</i>
-        </text>
+        <HighlightText text={props.text} fg={getTheme().dim} italic />
       </Show>
     </box>
   )
@@ -278,11 +454,36 @@ function StreamingPart(props: { message: UIMessage; kind: StreamKind; text: stri
 
 function Separator() {
   const dims = useTerminalDimensions()
-  const width = () => Math.max(10, (dims()?.width ?? 80) - 34 - 4)
+  const width = () => Math.max(10, (dims()?.width ?? 80) - sidebarCols() - 4)
   return <text fg={getTheme().track}>{"─".repeat(width())}</text>
 }
 
+function copyMessage(message: UIMessage): void {
+  const text = messageText(message)
+  if (text.length === 0) return
+  copyToClipboard(text)
+  showToast(message.role === "user" ? "copied your message" : "copied the reply")
+}
+
+function TurnMeta(props: { message: UIMessage }) {
+  const label = () => {
+    const at = props.message.startedAt
+    const time = at ? new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""
+    const parts: string[] = []
+    if (time) parts.push(time)
+    if (props.message.elapsedMs !== undefined) parts.push(formatDuration(props.message.elapsedMs))
+    if (props.message.tokens !== undefined && props.message.tokens > 0) parts.push(`${props.message.tokens} tok`)
+    return parts.join(" · ")
+  }
+  return (
+    <Show when={label().length > 0}>
+      <text fg={getTheme().dim}>{label()}</text>
+    </Show>
+  )
+}
+
 function MessageView(props: { message: UIMessage; streaming: boolean; first: boolean }) {
+  const items = createMemo(() => groupParts(props.message.parts))
   return (
     <FadeIn>
       <Show
@@ -290,7 +491,7 @@ function MessageView(props: { message: UIMessage; streaming: boolean; first: boo
         fallback={
           <box flexDirection="column" marginBottom={1} paddingLeft={1}>
             <For each={props.message.parts}>
-              {(part) => <text fg={getTheme().dim}>{part.kind === "text" ? part.text : ""}</text>}
+              {(part) => <HighlightText text={part.kind === "text" ? part.text : ""} fg={getTheme().dim} />}
             </For>
           </box>
         }
@@ -309,12 +510,21 @@ function MessageView(props: { message: UIMessage; streaming: boolean; first: boo
           paddingTop={props.message.role === "user" ? 1 : 0}
           paddingBottom={props.message.role === "user" ? 1 : 0}
         >
-          <text fg={props.message.role === "user" ? getTheme().accent : getTheme().blue}>
+          <text
+            fg={props.message.role === "user" ? getTheme().accent : getTheme().blue}
+            onMouseDown={() => copyMessage(props.message)}
+          >
             <b>{props.message.role === "user" ? "you" : "agent"}</b>
           </text>
           <box flexDirection="column" paddingLeft={1}>
-            <For each={props.message.parts}>
-              {(part) => <PartView message={props.message} part={part} streaming={props.streaming} />}
+            <For each={items()}>
+              {(item) =>
+                item.kind === "group" ? (
+                  <ToolGroupView message={props.message} parts={item.parts} />
+                ) : (
+                  <PartView message={props.message} part={item.part} streaming={props.streaming} />
+                )
+              }
             </For>
             <Show when={streamBuffer()?.messageId === props.message.id ? streamBuffer() : undefined}>
               {(buffer) => <StreamingPart message={props.message} kind={buffer().kind} text={buffer().text} />}
@@ -324,6 +534,9 @@ function MessageView(props: { message: UIMessage; streaming: boolean; first: boo
             </Show>
             <Show when={props.streaming}>
               <StreamingCursor />
+            </Show>
+            <Show when={props.message.role === "assistant" && !props.streaming}>
+              <TurnMeta message={props.message} />
             </Show>
           </box>
         </box>
@@ -340,6 +553,7 @@ function EmptyState() {
       </text>
       <text fg={getTheme().dim}>type a message and press enter</text>
       <text fg={getTheme().dim}>/ for commands · ctrl+p palette · tab plan/build</text>
+      <text fg={getTheme().dim}>pgup/pgdn scroll · click you/agent to copy · click a code block to copy</text>
       <text fg={getTheme().dim}>{`workspace · ${workspace() || "?"}`}</text>
     </box>
   )

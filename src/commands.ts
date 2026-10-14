@@ -11,6 +11,8 @@ export const COMMANDS: CommandSpec[] = [
   { name: "compact", description: "summarise the conversation to free context" },
   { name: "undo", description: "revert the model's last file edit (see /undo list)" },
   { name: "redo", description: "re-apply the last undone edit" },
+  { name: "changes", description: "review and revert files changed this session" },
+  { name: "retry", description: "re-run your last message and regenerate the reply" },
   { name: "tune", description: "show the self-tuning scoreboard" },
   { name: "good", description: "mark the last turn as good (trains tuning)" },
   { name: "bad", description: "mark the last turn as bad (trains tuning)" },

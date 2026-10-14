@@ -2,7 +2,7 @@
 import { For, Show, createEffect, createSignal, untrack } from "solid-js"
 import { useTimeline } from "@opentui/solid"
 import { getTheme, sg } from "../theme"
-import { contextPercent, gitBranch, mcpServers, metrics, modelLimit, promptTokens, todos } from "../store"
+import { contextPercent, gitBranch, mcpServers, metrics, modelLimit, promptTokens, reduceMotion, todos } from "../store"
 import { formatCompact, formatInt, formatRate, formatSeconds } from "../metrics"
 import { VERSION } from "../version"
 
@@ -57,6 +57,10 @@ export function Sidebar(props: { width?: number }) {
   const timeline = useTimeline()
   createEffect(() => {
     const target = targetFill()
+    if (reduceMotion()) {
+      setShownFill(target)
+      return
+    }
     timeline.add(
       { value: untrack(shownFill) },
       {

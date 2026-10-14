@@ -19,6 +19,8 @@ export type Part =
       diff?: { kind: "add" | "del" | "ctx"; text: string }[]
       durationMs?: number
       expanded?: boolean
+      // True while partial output is still streaming in (e.g. a long bash run).
+      live?: boolean
     }
 
 export interface UIMessage {
@@ -28,6 +30,10 @@ export interface UIMessage {
   images?: string[]
   thinkingMs?: number
   thinkingExpanded?: boolean
+  // Per-turn metadata (wall-clock start, duration, output tokens).
+  startedAt?: number
+  elapsedMs?: number
+  tokens?: number
 }
 
 export type StreamKind = "text" | "reasoning"
@@ -69,6 +75,21 @@ export const [workspace, setWorkspace] = createSignal("")
 export const [gitBranch, setGitBranch] = createSignal("")
 export const [switchingModel, setSwitchingModel] = createSignal(false)
 export const [webEnabled, setWebEnabled] = createSignal(false)
+
+// Busy status details (rich status bar): when the current turn started, which
+// tool round it is on, and how many tools are running right now.
+export const [turnStartedAt, setTurnStartedAt] = createSignal(0)
+export const [turnRound, setTurnRound] = createSignal(0)
+export const [activeTools, setActiveTools] = createSignal(0)
+
+// UI preferences resolved from config / environment.
+export const [reduceMotion, setReduceMotion] = createSignal(false)
+export const [sidebarVisible, setSidebarVisible] = createSignal(true)
+
+// Column width the sidebar occupies; 0 when hidden, so the main panes reflow.
+export function sidebarCols(): number {
+  return sidebarVisible() ? 34 : 0
+}
 
 export type Mode = "build" | "plan"
 export const [mode, setMode] = createSignal<Mode>("build")
@@ -154,6 +175,77 @@ export function clearFindNav(): void {
   setFindNav(undefined)
 }
 
+// A generic yes/no confirmation, used before destructive session actions like
+// /clear and /new (RAM-only sessions can't be recovered).
+export interface ConfirmRequest {
+  message: string
+  confirmLabel: string
+  resolve: (ok: boolean) => void
+}
+
+export const [confirmRequest, setConfirmRequest] = createSignal<ConfirmRequest | undefined>(undefined)
+
+export function requestConfirm(message: string, confirmLabel = "confirm"): Promise<boolean> {
+  return new Promise((resolve) => {
+    setConfirmRequest({ message, confirmLabel, resolve })
+  })
+}
+
+export function answerConfirm(ok: boolean): void {
+  const current = confirmRequest()
+  if (!current) return
+  setConfirmRequest(undefined)
+  current.resolve(ok)
+}
+
+// Interrupt chooser shown when esc is pressed while the model is working.
+export const INTERRUPT_OPTIONS = ["stop now", "finish current tool, then stop", "continue (cancel)"] as const
+export const [interruptMenu, setInterruptMenu] = createSignal(false)
+export const [interruptIndex, setInterruptIndex] = createSignal(0)
+
+export function moveInterruptIndex(delta: number): void {
+  setInterruptIndex((current) => Math.max(0, Math.min(INTERRUPT_OPTIONS.length - 1, current + delta)))
+}
+
+// "Changes this session" panel (built from the undo snapshots).
+export interface ChangeEntry {
+  path: string
+  edits: number
+}
+
+export const [changesPanel, setChangesPanel] = createSignal(false)
+export const [changesIndex, setChangesIndex] = createSignal(0)
+export const [changesList, setChangesList] = createSignal<ChangeEntry[]>([])
+
+// Per-tool cancellation. The agent registers a handler per running tool call;
+// the transcript's running panel (and the cancel key) can invoke it without
+// aborting the whole turn.
+const toolCancelHandlers = new Map<string, () => void>()
+
+export function registerToolCancel(id: string, fn: () => void): void {
+  toolCancelHandlers.set(id, fn)
+}
+
+export function unregisterToolCancel(id: string): void {
+  toolCancelHandlers.delete(id)
+}
+
+export function cancelTool(id: string): boolean {
+  const fn = toolCancelHandlers.get(id)
+  if (!fn) return false
+  fn()
+  return true
+}
+
+export function cancelAllTools(): void {
+  for (const fn of [...toolCancelHandlers.values()]) fn()
+}
+
+export function lastRunningToolId(): string | undefined {
+  const ids = [...toolCancelHandlers.keys()]
+  return ids[ids.length - 1]
+}
+
 export function messageSearchText(message: UIMessage): string {
   return message.parts
     .map((part) =>
@@ -203,6 +295,23 @@ export function startAssistantMessage(): string {
   const id = nextId("asst")
   setMessages((prev) => [...prev, { id, role: "assistant", parts: [] }])
   return id
+}
+
+// Remove the most recent user message and everything after it. Used by retry to
+// re-run the last turn cleanly before the fresh turn is appended.
+export function dropFromLastUserMessage(): boolean {
+  const list = messages()
+  let index = -1
+  for (let i = list.length - 1; i >= 0; i--) {
+    if (list[i].role === "user") {
+      index = i
+      break
+    }
+  }
+  if (index === -1) return false
+  setMessages(list.slice(0, index))
+  clearFindNav()
+  return true
 }
 
 export function patchMessage(id: string, fn: (message: UIMessage) => UIMessage): void {
@@ -276,6 +385,27 @@ export function toggleToolExpanded(messageId: string, toolId: string): void {
     ...m,
     parts: m.parts.map((p) => (p.kind === "tool" && p.id === toolId ? { ...p, expanded: !p.expanded } : p)),
   }))
+}
+
+// Stream a running tool's partial output into its panel (capped) without
+// waiting for it to finish.
+const LIVE_OUTPUT_CAP = 40_000
+
+export function appendToolOutput(messageId: string, toolId: string, chunk: string): void {
+  if (chunk.length === 0) return
+  patchMessage(messageId, (m) => ({
+    ...m,
+    parts: m.parts.map((p) => {
+      if (p.kind !== "tool" || p.id !== toolId) return p
+      const next = p.result.length >= LIVE_OUTPUT_CAP ? p.result : (p.result + chunk).slice(0, LIVE_OUTPUT_CAP)
+      return { ...p, result: next, live: true }
+    }),
+  }))
+}
+
+// Per-turn metadata shown under an agent message.
+export function setMessageMeta(id: string, patch: { startedAt?: number; elapsedMs?: number; tokens?: number }): void {
+  patchMessage(id, (m) => ({ ...m, ...patch }))
 }
 
 export type PermissionDecision = "once" | "always" | "all" | "deny"
@@ -414,6 +544,10 @@ export function resetSession(): void {
   setPermission(undefined)
   setQuestion(undefined)
   setQuestionTyping(false)
+  setConfirmRequest(undefined)
+  setInterruptMenu(false)
+  setChangesPanel(false)
+  setChangesList([])
   setInputPrefill("")
   setFindNav(undefined)
   setPalette(false)
@@ -421,6 +555,9 @@ export function resetSession(): void {
   setMetrics(EMPTY_METRICS)
   setContextPercent(0)
   setPromptTokens(0)
+  setTurnStartedAt(0)
+  setTurnRound(0)
+  setActiveTools(0)
   setAllowedTools([])
   setAllowedCommands([])
   setAutoApprove(false)

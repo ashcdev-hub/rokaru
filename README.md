@@ -80,6 +80,8 @@ Type `/` for a menu (**Tab** completes) or **Ctrl+P** for the palette.
 | `/compact` | Summarise the conversation to reclaim context. |
 | `/undo [list]` | Revert the model's last file edit, or list the undo stack. |
 | `/redo` | Re-apply the last undone edit. |
+| `/changes` | Review the files changed this session and revert one. |
+| `/retry` | Re-run your last message and regenerate the reply. |
 | `/tune` | Show the self-tuning scoreboard and a recommendation. |
 | `/good` · `/bad` | Label the last turn to train tuning. |
 | `/find <text>` | Jump through conversation matches (`n` next, `p` prev). |
@@ -95,6 +97,13 @@ Type `/` for a menu (**Tab** completes) or **Ctrl+P** for the palette.
 A prompt sent while the model is working is queued and sent when it's free. Your
 draft is kept if you open the palette, MCP, theme or model panel, and restored
 when you come back.
+
+Keyboard: `enter` send · `shift+enter` newline · `tab` plan/build · `esc`
+interrupt (a menu offers **stop now** or **finish the current tool, then
+stop**) · `pgup`/`pgdn` and `shift+↑`/`shift+↓` scroll the transcript ·
+`home`/`end` jump to top/bottom · `ctrl+r` reasoning · `ctrl+o` expand tools ·
+`ctrl+y` copy reply · `ctrl+b` sidebar · `ctrl+x` cancel the running tool ·
+`ctrl+p` palette. Click a `you`/`agent` label or a fenced code block to copy it.
 
 ## Privacy & security
 
@@ -149,6 +158,12 @@ is scanned for credential shapes and masked before it reaches the model.
 Type `@` in the prompt to pick a workspace file by name (fuzzy, ignores
 `.git`/`node_modules`); **Tab** inserts the path.
 
+Consecutive read-only calls are grouped into one `N read-only calls` row (click to
+expand), so a turn that reads many files stays compact. `bash` streams its output
+into the panel **while it runs**, and a single running tool can be cancelled with
+**`ctrl+x`** without aborting the turn. Every tool panel carries a `▸`/`▾`
+expander.
+
 <details>
 <summary>Tooling details</summary>
 
@@ -174,6 +189,26 @@ Type `@` in the prompt to pick a workspace file by name (fuzzy, ignores
   fixed. Disable with `diagnostics.enabled: false`.
 
 </details>
+
+### Transcript & navigation
+
+- Scroll with **`pgup`**/**`pgdn`**, **`shift+↑`**/**`shift+↓`** (by line) or
+  **`home`**/**`end`**; a scrollbar appears when the transcript overflows.
+- Click a **`you`**/**`agent`** label to copy that message, or a fenced **code
+  block** to copy it. `ctrl+y` copies the last reply.
+- Each reply ends with a subtle `time · duration · tokens` line.
+- **`/retry`** re-runs your last message and regenerates the reply. **`/changes`**
+  lists every file edited this session with a per-file diff and revert.
+- **`esc`** while the model is working opens an interrupt chooser: *stop now*, or
+  *finish the current tool, then stop* (the partial reply is kept either way).
+- **`/clear`** and **`/new`** ask for confirmation before wiping the session.
+- The sidebar collapses with **`ctrl+b`** and hides automatically on narrow
+  terminals. While working, the footer shows the phase, tool round, running tools,
+  elapsed time and output tokens.
+- **`/find`** highlights matches in reasoning and tool output as you step with
+  `n`/`p`.
+- **`ctrl+p`** opens the palette, now grouped by section with each action's
+  shortcut shown.
 
 ### MCP servers (optional)
 
@@ -284,9 +319,9 @@ instance.
 ### Themes
 
 `/themes` (alias `/theme`) opens a picker for the built-in palettes (**onyx,
-graphite, glacier, nocturne, lagoon, plum**) and lets you build a custom one.
-Colours update live, including the whole terminal background; custom themes are
-session-only.
+graphite, glacier, nocturne, lagoon, plum, contrast**) and lets you build a custom
+one. Colours update live, including the whole terminal background; custom themes
+are session-only.
 
 ## Configuration
 
@@ -314,6 +349,7 @@ session-only.
   "tools": { "maxResultChars": 24000, "maxResultTokens": 6000, "maxRounds": 100 },
   "diagnostics": { "enabled": true, "command": "" },
   "learning": { "enabled": true, "persist": false, "minRuns": 3 },
+  "ui": { "reduceMotion": false, "highContrast": false },
   "notify": true
 }
 ```
@@ -326,9 +362,37 @@ these for a single model by id under `modelSampling`, for example:
 "modelSampling": { "Ling-3.0-tiny-oQ6e": { "repetitionPenalty": 1.1 } }
 ```
 
+`ui.reduceMotion` disables the animated start-screen rain, fades, spinners and
+pulses — handy over SSH/tmux or on a slow terminal. `ui.highContrast` starts in
+the `contrast` palette. Setting the `NO_COLOR` environment variable turns both on.
+
 The API key is resolved from `ROKARU_OMLX_KEY` or `OMLX_LOCAL_KEY`, then the
 macOS Keychain (service `rokaru-omlx`), then the local default `sk-omlx-local`,
 and is never written to disk by rokaru.
+
+## Roadmap / ideas
+
+A running list of improvements under consideration. Shipped work is documented in
+the sections above; nothing here changes rokaru's core promise: fully local,
+RAM-only, and opt-in.
+
+- **Sandbox the post-edit diagnostics command.** It currently runs unsandboxed
+  (`/bin/zsh` with the full environment), unlike the `bash` tool.
+- **Guard writes by sensitive path.** `write_file`/`edit_file` aren't checked
+  against the protected-path list the way reads are.
+- **Fix the dead MCP permission preview.** MCP tools register as
+  `mcp__server__tool`, so the dedicated `mcp_call` preview never fires.
+- **Hot-reload `AGENTS.md`** (and config) instead of caching for the session.
+- **Machine-portable tests.** `scripts/sandbox.test.ts` and
+  `scripts/render-prompt.test.tsx` hardcode this machine's paths.
+- **Headless one-shot mode.** `rokaru -p "…"` for scripted, non-interactive runs.
+- **Custom slash commands.** User-authored prompt templates in
+  `.rokaru/commands/*.md`.
+- **Session checkpoints.** Named snapshots of the whole session's file state.
+- **`/init`.** Generate a starter `AGENTS.md` from the repo layout.
+- **Edit-and-resend / branch** from an earlier user message.
+- **Remote (HTTP) MCP servers**, beyond the current stdio-only support.
+- **Auto-format hook.** Run the project's formatter on changed files after edits.
 
 ## Acknowledgements
 

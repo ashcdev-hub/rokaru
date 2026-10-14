@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/solid */
-import { createSignal, onMount, Show } from "solid-js"
-import { useKeyboard, useRenderer, useSelectionHandler } from "@opentui/solid"
-import { runTurn, compactHistory, resetHistory, type TurnOptions } from "./agent"
+import { createSignal, onMount, Show, createEffect } from "solid-js"
+import { useKeyboard, useRenderer, useSelectionHandler, useTerminalDimensions } from "@opentui/solid"
+import { runTurn, compactHistory, resetHistory, retryLastTurn, requestSoftStop, type TurnOptions } from "./agent"
 import { clearProxyEnv } from "./guard"
 import { installLifecycle, secureExit } from "./lifecycle"
 import { isOmlxServerRunning, purgeOmlxSessionCache } from "./omlxCache"
@@ -21,7 +21,7 @@ import { COMMANDS, matchCommands, resolveCommandName } from "./commands"
 import { imageDataUrl } from "./image"
 import { applyMention, mentionMatches } from "./fileMentions"
 import { friendlyError } from "./errors"
-import { listSnapshots, redoLast, undoLast } from "./undo"
+import { listSnapshots, redoLast, undoLast, sessionChanges, revertChange } from "./undo"
 import { connectServer, disconnectServer } from "./mcp"
 import { registerDynamicTools, unregisterDynamicTools } from "./tools"
 import { discoverSkills, invocableSkills } from "./skills"
@@ -39,7 +39,14 @@ import { SwitchModel } from "./components/SwitchModel"
 import { CommandPalette, filterPaletteActions, type PaletteAction } from "./components/CommandPalette"
 import { McpPanel } from "./components/McpPanel"
 import { SkillsPanel } from "./components/SkillsPanel"
-import { scrollTranscriptToBottom, scrollTranscriptToMessage } from "./components/MessageList"
+import { ChangesPanel } from "./components/ChangesPanel"
+import {
+  scrollTranscriptBy,
+  scrollTranscriptPage,
+  scrollTranscriptToBottom,
+  scrollTranscriptToMessage,
+  scrollTranscriptToTop,
+} from "./components/MessageList"
 import { ThemePanel } from "./components/ThemePanel"
 import { StartupBackground } from "./components/StartupBackground"
 import type { InputHandle } from "./components/InputBox"
@@ -48,6 +55,8 @@ type Phase = "loading" | "pick" | "ready" | "error"
 
 export function App() {
   const renderer = useRenderer()
+  const dims = useTerminalDimensions()
+  const [userSidebar, setUserSidebar] = createSignal(true)
   const [phase, setPhase] = createSignal<Phase>("loading")
   const [loadError, setLoadError] = createSignal<string>("")
   let controller: AbortController | undefined
@@ -55,6 +64,12 @@ export function App() {
   const config = loadConfig()
   clearProxyEnv()
   const workspace = process.env.ROKARU_WORKSPACE || process.cwd()
+
+  // The sidebar hides below a width threshold and can be toggled with ctrl+b.
+  createEffect(() => {
+    const wide = (dims()?.width ?? 80) >= 90
+    store.setSidebarVisible(userSidebar() && wide)
+  })
 
   let inputHandle: InputHandle | undefined
   let queued: string | undefined
@@ -65,6 +80,34 @@ export function App() {
   const mcpToolNames = new Map<string, string[]>()
   const updateMcpStatus = (name: string, patch: Partial<store.McpServerInfo>) => {
     store.setMcpServers((prev) => prev.map((server) => (server.name === name ? { ...server, ...patch } : server)))
+  }
+
+  const noColour = () => {
+    const value = process.env.NO_COLOR
+    return value !== undefined && value !== ""
+  }
+
+  // Resolve UI preferences before the first render so reduce-motion/contrast
+  // take effect on the startup screen too.
+  store.setReduceMotion(config.ui.reduceMotion || noColour())
+  if (config.ui.highContrast || noColour()) setCurrentTheme("contrast")
+
+  const loadModels = async () => {
+    setPhase("loading")
+    setLoadError("")
+    try {
+      const models = await listModels({ baseURL: config.baseURL, apiKey: resolveApiKey() })
+      if (models.length === 0) {
+        setLoadError("oMLX returned no models. Load a model in oMLX, then press r to retry.")
+        setPhase("error")
+        return
+      }
+      store.setModels(models)
+      setPhase("pick")
+    } catch (err) {
+      setLoadError(friendlyError(err, { baseURL: config.baseURL }))
+      setPhase("error")
+    }
   }
 
   onMount(() => {
@@ -87,27 +130,18 @@ export function App() {
     // Skills are discovered once on launch (RAM only). They are a static set
     // for the session; reloading them is not needed.
     store.setSkillList(discoverSkills(config.skills, workspace))
-    void (async () => {
-      try {
-        const models = await listModels({ baseURL: config.baseURL, apiKey: resolveApiKey() })
-        if (models.length === 0) {
-          setLoadError("oMLX returned no models. Load a model in oMLX, then relaunch rokaru.")
-          setPhase("error")
-          return
-        }
-        store.setModels(models)
-        setPhase("pick")
-      } catch (err) {
-        setLoadError(`${friendlyError(err, { baseURL: config.baseURL })}\nStart oMLX yourself, then relaunch rokaru.`)
-        setPhase("error")
-      }
-    })()
+    void loadModels()
   })
 
   const busy = () => {
     const s = store.status()
     return s === "thinking" || s === "streaming" || s === "tool" || s === "permission"
   }
+
+  // Close the interrupt chooser if the turn finishes on its own.
+  createEffect(() => {
+    if (store.interruptMenu() && !busy()) store.setInterruptMenu(false)
+  })
 
   // Best-effort warm-up so the first real prompt doesn't pay the model-load /
   // cold-prefill cost. Fired in the background; failures are ignored.
@@ -165,6 +199,8 @@ export function App() {
         "  /compact        summarise the conversation to free context",
         "  /undo [list]    revert the model's last file edit (or list the stack)",
         "  /redo           re-apply the last undone edit",
+        "  /changes        review and revert files changed this session",
+        "  /retry          re-run your last message and regenerate the reply",
         "  /tune           show the self-tuning scoreboard (which model works best)",
         "  /good | /bad     label the last turn to train the scoreboard",
         "  /allow-all      auto-approve all tool calls for this session (toggle)",
@@ -179,8 +215,10 @@ export function App() {
         "  /themes         switch colour theme",
         "  /exit           quit (/quit works too)",
         "",
-        "keys:  enter send · shift+enter newline · tab plan/build · esc abort",
-        "       ctrl+r reasoning · ctrl+o expand tools · ctrl+p commands · ctrl+c quit",
+        "keys:  enter send · shift+enter newline · tab plan/build · esc interrupt",
+        "       pgup/pgdn · shift+↑↓ scroll transcript · home/end top/bottom",
+        "       ctrl+r reasoning · ctrl+o expand tools · ctrl+y copy reply · ctrl+b sidebar",
+        "       ctrl+x cancel running tool · ctrl+p commands · ctrl+c quit",
         "mouse: select any text to copy it to the clipboard",
       ].join("\n"),
     )
@@ -209,6 +247,46 @@ export function App() {
     store.resetSession()
     resetHistory()
     store.showToast(message)
+  }
+
+  // /clear and /new wipe the whole (unrecoverable) session, so gate them.
+  const confirmNewConversation = () => {
+    void store
+      .requestConfirm("Start a new conversation? This wipes the current session (RAM-only, unrecoverable).", "clear session")
+      .then((ok) => {
+        if (ok) newConversation("conversation cleared")
+      })
+  }
+
+  const openChanges = () => {
+    store.setChangesList(sessionChanges().map((change) => ({ path: change.path, edits: change.edits })))
+    store.setChangesIndex(0)
+    store.setChangesPanel(true)
+  }
+
+  const retry = () => {
+    if (busy()) {
+      store.showToast("busy — try /retry when idle", "warn")
+      return
+    }
+    store.clearFindNav()
+    scrollTranscriptToBottom()
+    controller = new AbortController()
+    void retryLastTurn(options(controller.signal)).finally(() => {
+      controller = undefined
+    })
+  }
+
+  // Resolve the esc interrupt chooser: 0 stop now, 1 finish current tool then
+  // stop, 2 continue.
+  const resolveInterrupt = (choice: number) => {
+    store.setInterruptMenu(false)
+    if (choice === 0) {
+      controller?.abort()
+    } else if (choice === 1) {
+      requestSoftStop()
+      store.showToast("will stop after the current step", "info")
+    }
   }
 
   const runPrivacyCheck = async () => {
@@ -430,9 +508,17 @@ export function App() {
         }
         return
       }
+      case "changes": {
+        openChanges()
+        return
+      }
+      case "retry": {
+        retry()
+        return
+      }
       case "clear":
       case "new":
-        newConversation("conversation cleared")
+        confirmNewConversation()
         return
       case "compact": {
         if (busy()) {
@@ -446,10 +532,30 @@ export function App() {
     }
   }
 
+  const copyLastResponse = () => {
+    const last = [...store.messages()].reverse().find((m) => m.role === "assistant")
+    const committed = last
+      ? last.parts
+          .filter((p) => p.kind === "text")
+          .map((p) => (p as { text: string }).text)
+          .join("\n")
+      : ""
+    const buffer = store.streamBuffer()
+    const tail = buffer && last && buffer.messageId === last.id && buffer.kind === "text" ? buffer.text : ""
+    const text = [committed, tail].filter((s) => s.length > 0).join("\n").trim()
+    if (text.length > 0) {
+      copyToClipboard(text)
+      store.showToast("copied last response")
+    } else {
+      store.showToast("nothing to copy", "info")
+    }
+  }
+
   const paletteActions = (): (PaletteAction & { run: () => void })[] => [
     ...COMMANDS.map((command) => ({
       label: `/${command.name}`,
       description: command.description,
+      category: "commands",
       run: () => {
         store.setPalette(false)
         if (command.name === "model") {
@@ -464,6 +570,8 @@ export function App() {
     {
       label: store.mode() === "plan" ? "switch to build mode" : "switch to plan mode",
       description: "toggle read-only planning",
+      category: "view",
+      shortcut: "tab",
       run: () => {
         store.setPalette(false)
         store.setMode(store.mode() === "plan" ? "build" : "plan")
@@ -472,14 +580,65 @@ export function App() {
     {
       label: "toggle reasoning",
       description: "show/hide all thinking",
+      category: "view",
+      shortcut: "ctrl+r",
       run: () => {
         store.setPalette(false)
         store.setShowReasoning(!store.showReasoning())
       },
     },
     {
+      label: "expand/collapse tool output",
+      description: "expand every tool panel",
+      category: "view",
+      shortcut: "ctrl+o",
+      run: () => {
+        store.setPalette(false)
+        store.setExpandTools(!store.expandTools())
+      },
+    },
+    {
+      label: "copy last response",
+      description: "copy the most recent reply",
+      category: "view",
+      shortcut: "ctrl+y",
+      run: () => {
+        store.setPalette(false)
+        copyLastResponse()
+      },
+    },
+    {
+      label: store.sidebarVisible() ? "hide sidebar" : "show sidebar",
+      description: "toggle the sidebar panel",
+      category: "view",
+      shortcut: "ctrl+b",
+      run: () => {
+        store.setPalette(false)
+        setUserSidebar(!userSidebar())
+      },
+    },
+    {
+      label: "retry last message",
+      description: "regenerate the last reply",
+      category: "session",
+      run: () => {
+        store.setPalette(false)
+        retry()
+      },
+    },
+    {
+      label: "changes this session",
+      description: "review and revert edited files",
+      category: "session",
+      run: () => {
+        store.setPalette(false)
+        openChanges()
+      },
+    },
+    {
       label: "quit",
       description: "exit rokaru (wipes the session)",
+      category: "session",
       run: () => secureExit(renderer, 130),
     },
   ]
@@ -669,22 +828,28 @@ export function App() {
 
     if (key.ctrl && key.name === "y") {
       key.preventDefault()
-      const last = [...store.messages()].reverse().find((m) => m.role === "assistant")
-      const committed = last
-        ? last.parts
-            .filter((p) => p.kind === "text")
-            .map((p) => (p as { text: string }).text)
-            .join("\n")
-        : ""
-      const buffer = store.streamBuffer()
-      const tail = buffer && last && buffer.messageId === last.id && buffer.kind === "text" ? buffer.text : ""
-      const text = [committed, tail].filter((s) => s.length > 0).join("\n").trim()
-      if (text.length > 0) {
-        copyToClipboard(text)
-        store.showToast("copied last response")
-      } else {
-        store.showToast("nothing to copy", "info")
-      }
+      copyLastResponse()
+      return
+    }
+
+    if (key.ctrl && key.name === "b") {
+      key.preventDefault()
+      setUserSidebar((value) => !value)
+      return
+    }
+
+    if (key.ctrl && key.name === "x") {
+      key.preventDefault()
+      const toolId = store.lastRunningToolId()
+      if (toolId && store.cancelTool(toolId)) store.showToast("cancelling tool…", "info")
+      else store.showToast("no running tool to cancel", "info")
+      return
+    }
+
+    // Startup screen: retry loading models after a failure.
+    if (phase() === "error" && key.name === "r" && !key.ctrl && !key.meta) {
+      key.preventDefault()
+      void loadModels()
       return
     }
 
@@ -805,10 +970,66 @@ export function App() {
       return
     }
 
+    if (store.changesPanel()) {
+      const list = store.changesList()
+      if (key.name === "escape") {
+        key.preventDefault()
+        store.setChangesPanel(false)
+      } else if (key.name === "up") {
+        key.preventDefault()
+        store.setChangesIndex(Math.max(0, store.changesIndex() - 1))
+      } else if (key.name === "down") {
+        key.preventDefault()
+        store.setChangesIndex(Math.min(Math.max(0, list.length - 1), store.changesIndex() + 1))
+      } else if (key.name === "return" || key.name === "enter") {
+        key.preventDefault()
+        const entry = list[store.changesIndex()]
+        if (entry && revertChange(entry.path)) {
+          const next = sessionChanges().map((change) => ({ path: change.path, edits: change.edits }))
+          store.setChangesList(next)
+          store.setChangesIndex(Math.min(store.changesIndex(), Math.max(0, next.length - 1)))
+          store.showToast(`reverted ${entry.path}`)
+          if (next.length === 0) store.setChangesPanel(false)
+        }
+      }
+      return
+    }
+
     if (store.switchingModel()) {
       if (key.name === "escape") {
         key.preventDefault()
         store.setSwitchingModel(false)
+      }
+      return
+    }
+
+    if (store.interruptMenu()) {
+      if (key.name === "escape") {
+        key.preventDefault()
+        store.setInterruptMenu(false)
+      } else if (key.name === "up") {
+        key.preventDefault()
+        store.moveInterruptIndex(-1)
+      } else if (key.name === "down") {
+        key.preventDefault()
+        store.moveInterruptIndex(1)
+      } else if (/^[1-3]$/.test(key.name ?? "")) {
+        key.preventDefault()
+        resolveInterrupt(Number(key.name) - 1)
+      } else if (key.name === "return" || key.name === "enter") {
+        key.preventDefault()
+        resolveInterrupt(store.interruptIndex())
+      }
+      return
+    }
+
+    if (store.confirmRequest()) {
+      if (key.name === "y") {
+        key.preventDefault()
+        store.answerConfirm(true)
+      } else if (key.name === "n" || key.name === "escape") {
+        key.preventDefault()
+        store.answerConfirm(false)
       }
       return
     }
@@ -889,9 +1110,44 @@ export function App() {
       return
     }
 
+    // Transcript scrolling (the scrollbox itself isn't focused).
+    if (phase() === "ready") {
+      if (key.name === "pageup") {
+        key.preventDefault()
+        scrollTranscriptPage(-1)
+        return
+      }
+      if (key.name === "pagedown") {
+        key.preventDefault()
+        scrollTranscriptPage(1)
+        return
+      }
+      if (key.name === "home") {
+        key.preventDefault()
+        scrollTranscriptToTop()
+        return
+      }
+      if (key.name === "end") {
+        key.preventDefault()
+        scrollTranscriptToBottom()
+        return
+      }
+      if (key.name === "up" && key.shift) {
+        key.preventDefault()
+        scrollTranscriptBy(-3)
+        return
+      }
+      if (key.name === "down" && key.shift) {
+        key.preventDefault()
+        scrollTranscriptBy(3)
+        return
+      }
+    }
+
     if (key.name === "escape" && busy()) {
       key.preventDefault()
-      controller?.abort()
+      store.setInterruptIndex(0)
+      store.setInterruptMenu(true)
       return
     }
 
@@ -976,7 +1232,15 @@ export function App() {
     <box width="100%" height="100%" backgroundColor={getTheme().background}>
       <Show
         when={phase() === "ready"}
-        fallback={<Startup phase={phase()} message={loadError()} models={store.models()} onSelect={chooseModel} />}
+        fallback={
+          <Startup
+            phase={phase()}
+            message={loadError()}
+            models={store.models()}
+            onSelect={chooseModel}
+            baseURL={config.baseURL}
+          />
+        }
       >
       <Show
         when={store.switchingModel()}
@@ -993,12 +1257,19 @@ export function App() {
                       <Show
                         when={store.themePanel()}
                         fallback={
-                          <ChatView
-                            onSubmit={submit}
-                            inputHeight={config.inputHeight}
-                            onReady={(handle) => (inputHandle = handle)}
-                            onContentChange={onContentChange}
-                          />
+                          <Show
+                            when={store.changesPanel()}
+                            fallback={
+                              <ChatView
+                                onSubmit={submit}
+                                inputHeight={config.inputHeight}
+                                onReady={(handle) => (inputHandle = handle)}
+                                onContentChange={onContentChange}
+                              />
+                            }
+                          >
+                            <ChangesPanel />
+                          </Show>
                         }
                       >
                         <ThemePanel />
@@ -1033,6 +1304,7 @@ export function Startup(props: {
   message: string
   models: ModelInfo[]
   onSelect: (model: ModelInfo) => void
+  baseURL?: string
 }) {
   // Size the rain's clear rectangle to the centred content so it can't overlap
   // the logo or the model list as the list grows.
@@ -1069,10 +1341,11 @@ export function Startup(props: {
             <ModelPicker models={props.models} onSelect={props.onSelect} />
           </Show>
           <Show when={props.phase === "loading"}>
-            <text fg={getTheme().dim}>contacting oMLX…</text>
+            <text fg={getTheme().dim}>{`contacting oMLX at ${props.baseURL ?? "(unset)"}…`}</text>
           </Show>
           <Show when={props.phase === "error"}>
             <text fg={getTheme().bad}>{props.message}</text>
+            <text fg={getTheme().dim}>{`tried ${props.baseURL ?? "(unset)"} · press r to retry`}</text>
           </Show>
           <text fg={getTheme().text}>{""}</text>
           <text fg={getTheme().dim}>{`workspace · ${store.workspace() || "?"}`}</text>

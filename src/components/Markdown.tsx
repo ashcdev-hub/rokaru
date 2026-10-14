@@ -3,6 +3,8 @@ import { For, Show } from "solid-js"
 import { getTheme, sg } from "../theme"
 import type { Span } from "../syntax"
 import { CodeLines } from "./Code"
+import { copyToClipboard } from "../clipboard"
+import { showToast } from "../store"
 
 // Inline: **bold**, *italic*/_italic_, `code`, [label](url), ~~strike~~.
 const INLINE = /(`[^`]+`|\*\*[^*]+\*\*|__[^_]+__|\*[^*\n]+\*|_[^_\n]+_|~~[^~]+~~|\[[^\]]+\]\([^)]+\))/g
@@ -223,10 +225,12 @@ export function Markdown(props: { text: string }) {
                   borderColor={getTheme().panelBorder}
                   paddingLeft={1}
                   paddingRight={1}
+                  onMouseDown={() => {
+                    copyToClipboard(block.lines.join("\n"))
+                    showToast("copied code block")
+                  }}
                 >
-                  <Show when={block.lang.length > 0}>
-                    <text fg={getTheme().dim}>{block.lang}</text>
-                  </Show>
+                  <text fg={getTheme().dim}>{`${block.lang ? `${block.lang}  ` : ""}click to copy`}</text>
                   <CodeLines lines={block.lines} />
                 </box>
               )

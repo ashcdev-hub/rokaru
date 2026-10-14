@@ -7,6 +7,8 @@ import { MessageList } from "./MessageList"
 import { PermissionBody } from "./PermissionPrompt"
 import { PromptPanel } from "./PromptPanel"
 import { QuestionPanel } from "./QuestionPanel"
+import { ConfirmPrompt } from "./ConfirmPrompt"
+import { InterruptPanel } from "./InterruptPanel"
 import { Sidebar } from "./Sidebar"
 import { Toast } from "./Toast"
 import { CommandMenu } from "./CommandMenu"
@@ -36,33 +38,58 @@ export function ChatView(props: {
               <Show
                 when={!store.questionTyping() ? store.question() : undefined}
                 fallback={
-                  <>
-                    <Show when={store.pendingImages().length > 0}>
-                      <box flexDirection="row" flexShrink={0} paddingLeft={1}>
-                        <text fg={getTheme().accent}>
-                          {`📎 ${store.pendingImages().map((image) => image.name).join("  ")}  · send to attach`}
-                        </text>
-                      </box>
-                    </Show>
-                    <Show when={store.findNav()}>
-                      {(nav) => (
-                        <box flexDirection="row" flexShrink={0} paddingLeft={1}>
-                          <text fg={getTheme().accent}>
-                            {`🔎 ${nav().at + 1}/${nav().hits.length} “${nav().query}” · n next · p prev · esc done`}
-                          </text>
-                        </box>
-                      )}
-                    </Show>
-                    <CommandMenu />
-                    <MentionMenu />
-                    <InputBox
-                      onSubmit={props.onSubmit}
-                      focused={!store.permission() && (!store.question() || store.questionTyping())}
-                      height={props.inputHeight}
-                      onReady={props.onReady}
-                      onContentChange={props.onContentChange}
-                    />
-                  </>
+                  <Show
+                    when={store.interruptMenu()}
+                    fallback={
+                      <Show
+                        when={store.confirmRequest()}
+                        fallback={
+                          <>
+                            <Show when={store.pendingImages().length > 0}>
+                              <box flexDirection="row" flexShrink={0} paddingLeft={1}>
+                                <text fg={getTheme().accent}>
+                                  {`📎 ${store.pendingImages().map((image) => image.name).join("  ")}  · send to attach`}
+                                </text>
+                              </box>
+                            </Show>
+                            <Show when={store.findNav()}>
+                              {(nav) => (
+                                <box flexDirection="row" flexShrink={0} paddingLeft={1}>
+                                  <text fg={getTheme().accent}>
+                                    {`🔎 ${nav().at + 1}/${nav().hits.length} “${nav().query}” · n next · p prev · esc done`}
+                                  </text>
+                                </box>
+                              )}
+                            </Show>
+                            <CommandMenu />
+                            <MentionMenu />
+                            <InputBox
+                              onSubmit={props.onSubmit}
+                              focused={
+                                !store.permission() &&
+                                (!store.question() || store.questionTyping()) &&
+                                !store.interruptMenu() &&
+                                !store.confirmRequest()
+                              }
+                              height={props.inputHeight}
+                              onReady={props.onReady}
+                              onContentChange={props.onContentChange}
+                            />
+                          </>
+                        }
+                      >
+                        {(pending) => (
+                          <PromptPanel>
+                            <ConfirmPrompt request={pending()} />
+                          </PromptPanel>
+                        )}
+                      </Show>
+                    }
+                  >
+                    <PromptPanel>
+                      <InterruptPanel />
+                    </PromptPanel>
+                  </Show>
                 }
               >
                 {(pending) => (
@@ -82,7 +109,9 @@ export function ChatView(props: {
           {/* Toast lives in the main pane so it never overlaps the sidebar */}
           <Toast />
         </box>
-        <Sidebar width={34} />
+        <Show when={store.sidebarVisible()}>
+          <Sidebar width={34} />
+        </Show>
       </box>
       <ProgressBar />
     </box>

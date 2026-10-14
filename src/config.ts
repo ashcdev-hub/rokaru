@@ -82,6 +82,15 @@ export interface LearningConfig {
   minRuns: number
 }
 
+export interface UiConfig {
+  // Disable animations (rain, fades, spinners, pulses). Useful on SSH/tmux,
+  // low-power terminals, or for a reduced-motion preference. Also enabled by
+  // the NO_COLOR env var.
+  reduceMotion: boolean
+  // Start in the high-contrast palette. Also enabled by NO_COLOR.
+  highContrast: boolean
+}
+
 export interface RokaruConfig {
   baseURL: string
   systemPrompt: string
@@ -98,6 +107,7 @@ export interface RokaruConfig {
   tools: ToolsConfig
   diagnostics: DiagnosticsConfig
   learning: LearningConfig
+  ui: UiConfig
   // Ring the terminal bell when a turn finishes.
   notify: boolean
 }
@@ -159,6 +169,10 @@ export const DEFAULT_CONFIG: RokaruConfig = {
     persist: false,
     minRuns: 3,
   },
+  ui: {
+    reduceMotion: false,
+    highContrast: false,
+  },
   notify: true,
 }
 
@@ -197,6 +211,7 @@ function mergeConfig(partial: Partial<RokaruConfig>): RokaruConfig {
     tools: { ...DEFAULT_CONFIG.tools, ...(partial.tools ?? {}) },
     diagnostics: { ...DEFAULT_CONFIG.diagnostics, ...(partial.diagnostics ?? {}) },
     learning: { ...DEFAULT_CONFIG.learning, ...(partial.learning ?? {}) },
+    ui: { ...DEFAULT_CONFIG.ui, ...(partial.ui ?? {}) },
     notify: partial.notify ?? DEFAULT_CONFIG.notify,
   }
 }

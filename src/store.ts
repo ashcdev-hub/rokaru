@@ -1,6 +1,6 @@
 import { createSignal } from "solid-js"
 import { EMPTY_METRICS, type TurnMetrics } from "./metrics"
-import type { ModelInfo } from "./omlx"
+import type { HealthInfo, ModelInfo, ModelStatus } from "./omlx"
 import type { Theme } from "./theme"
 import type { Skill } from "./skills"
 
@@ -101,6 +101,21 @@ export const [outputLimit, setOutputLimit] = createSignal(0)
 
 // Session-only input height override (ctrl+↑/↓). Never persisted to config.
 export const [inputHeightOverride, setInputHeightOverride] = createSignal<number | undefined>(undefined)
+
+// oMLX integration state: prefill progress, model residency, server health.
+export interface PrefillState {
+  total: number
+  cache: number
+  processed: number
+  timeMs: number
+}
+export const [prefill, setPrefill] = createSignal<PrefillState | undefined>(undefined)
+export const [modelStatus, setModelStatus] = createSignal<ModelStatus[]>([])
+export const [modelLoading, setModelLoading] = createSignal(false)
+export const [serverHealth, setServerHealth] = createSignal<HealthInfo | undefined>(undefined)
+export const [embeddingModel, setEmbeddingModel] = createSignal<string | undefined>(undefined)
+// Set false if the server rejects return_progress, so we stop asking.
+export const [prefillSupported, setPrefillSupported] = createSignal(true)
 
 // In-memory command usage, for the "frequent" section of the / menu. Kept for
 // the whole process (not reset by /new).
@@ -635,6 +650,7 @@ export function resetSession(): void {
   setTurnStartedAt(0)
   setTurnRound(0)
   setActiveTools(0)
+  setPrefill(undefined)
   setAllowedTools([])
   setAllowedCommands([])
   setAutoApprove(false)

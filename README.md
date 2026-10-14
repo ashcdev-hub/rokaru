@@ -224,6 +224,11 @@ expander.
   is cached), todos show a completion bar, and a session timer sits at the top.
 - While working, the footer shows the phase, tool round, running tools, elapsed
   time, output tokens, live **tokens/sec** and a rough **time-left** estimate.
+  When oMLX reports prefill progress, long prompts show a **prefill bar**
+  (`prefill 42% · 44k/102k tok · tok/s · ~eta · cached`) instead.
+- The sidebar shows the **model's residency** (`◍ ready · 12.4 GB · pinned`), and
+  a freshly selected model is **warmed in the background** so the first turn
+  isn't a cold load.
 - **`/find`** highlights matches (on an amber background) in reasoning and tool
   output as you step with `n`/`p`, with the position in the footer.
 - **`/compact`** shows a "summarising conversation" indicator while it folds the
@@ -379,6 +384,12 @@ start-screen logo/rain adapt to a light background.
   "diagnostics": { "enabled": true, "command": "" },
   "learning": { "enabled": true, "persist": false, "minRuns": 3 },
   "ui": { "reduceMotion": false, "highContrast": false },
+  "omlx": {
+    "warmModels": true,
+    "prefillProgress": true,
+    "tokenCounting": true,
+    "embeddings": true
+  },
   "notify": true
 }
 ```
@@ -394,6 +405,15 @@ these for a single model by id under `modelSampling`, for example:
 `ui.reduceMotion` disables the animated start-screen rain, fades, spinners and
 pulses — handy over SSH/tmux or on a slow terminal. `ui.highContrast` starts in
 the `contrast` palette. Setting the `NO_COLOR` environment variable turns both on.
+
+The `omlx` block tunes how rokaru talks to the server. `warmModels` preloads the
+selected model in the background (via `POST /v1/models/{id}/load`) so the first
+turn isn't a cold load; the sidebar shows model residency, size and pinning.
+`prefillProgress` streams prompt-processing progress so long prompts show a
+**prefill bar** (percent, tok/s, ETA, cached tokens) instead of a blank wait.
+`tokenCounting` and `embeddings` are used by later optimisations and fall back
+gracefully when the server (or a model) doesn't support them. All three default
+to `true`.
 
 The API key is resolved from `ROKARU_OMLX_KEY` or `OMLX_LOCAL_KEY`, then the
 macOS Keychain (service `rokaru-omlx`), then the local default `sk-omlx-local`,

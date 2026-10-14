@@ -59,7 +59,13 @@ export function skillSchemas(skills: Skill[]): ToolDef {
 // way, and hiding them behind a search step proved fragile. The `skill` tool is
 // injected with a description that reflects the current skill set.
 export function toolSchemas(webEnabled = false, planMode = false, skills: Skill[] = []): ToolSchema[] {
-  const base = [...TOOLS, ...dynamicToolList()]
+  // Deterministic order (fixed built-ins, then name-sorted MCP tools) so the
+  // tools block stays byte-stable across turns and doesn't bust oMLX's prefix
+  // cache on every request.
+  const dynamic = dynamicToolList()
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name))
+  const base = [...TOOLS, ...dynamic]
     .filter((tool) => (webEnabled || !WEB_TOOLS.has(tool.name)) && (!planMode || !tool.destructive))
   const withSkill = [...base, skillSchemas(skills)]
   return withSkill.map((tool) => ({

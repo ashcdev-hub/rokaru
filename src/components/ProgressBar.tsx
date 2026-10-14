@@ -14,6 +14,7 @@ import {
   mode,
   modelLimit,
   outputLimit,
+  prefill,
   reduceMotion,
   status,
   statusDetail,
@@ -78,6 +79,21 @@ export function ProgressBar() {
     return bits.join(" · ")
   }
 
+  // Prefill progress (from oMLX return_progress) while the prompt is processed.
+  const prefillText = () => {
+    const p = prefill()
+    if (!p || p.total <= 0) return ""
+    const pct = Math.round((p.processed / p.total) * 100)
+    const secs = p.timeMs / 1000
+    const speed = secs > 0 ? p.processed / secs : 0
+    const remaining = Math.max(0, p.total - p.processed)
+    const bits = [`prefill ${pct}%`, `${formatInt(p.processed)}/${formatInt(p.total)} tok`]
+    if (speed > 0) bits.push(`${speed.toFixed(0)} tok/s`)
+    if (speed > 0 && remaining > 0) bits.push(`~${formatSeconds(remaining / speed)}`)
+    if (p.cache > 0) bits.push(`cached ${formatInt(p.cache)}`)
+    return bits.join(" · ")
+  }
+
   const context = () => {
     if (modelLimit() > 0) return `${Math.round(contextPercent())}%`
     return "ctx --"
@@ -113,7 +129,7 @@ export function ProgressBar() {
           }
         >
           <text fg={getTheme().meter}>{cells()}</text>
-          <text fg={getTheme().dim}>{`  ${activity()}   esc stop`}</text>
+          <text fg={getTheme().dim}>{`  ${prefillText() || activity()}   esc stop`}</text>
         </Show>
         <Show when={autoApprove()}>
           <text fg={getTheme().warn}>{"  ⚠ allow-all "}</text>

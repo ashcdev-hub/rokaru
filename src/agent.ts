@@ -17,6 +17,7 @@ import * as store from "./store"
 
 let history: ChatMessage[] = []
 let warnedContext = false
+let lastCacheRatio = 0
 let softStop = false
 
 export function resetHistory(): void {
@@ -26,6 +27,7 @@ export function resetHistory(): void {
   }
   history = []
   warnedContext = false
+  lastCacheRatio = 0
   softStop = false
   clearWebAllowlist()
   clearSnapshots()
@@ -121,18 +123,25 @@ function samplingParams(options: TurnOptions) {
 function applyUsage(usage: Usage): void {
   const promptTokens = usage.prompt_tokens ?? usage.input_tokens ?? 0
   const outputTokens = usage.completion_tokens ?? usage.output_tokens ?? 0
+  const cachedTokens = usage.prompt_tokens_details?.cached_tokens ?? 0
   const limit = store.modelLimit()
   store.setMetrics({
     ttft: usage.time_to_first_token ?? usage.time_to_first_visible_token ?? 0,
     tps: usage.generation_tokens_per_second ?? 0,
     outputTokens,
     promptTokens,
-    cachedTokens: usage.prompt_tokens_details?.cached_tokens ?? 0,
+    cachedTokens,
     contextLimit: limit,
     elapsed: usage.total_time ?? 0,
     model: store.model(),
   })
   store.setPromptTokens(promptTokens)
+  // Warn when a large cached prefix is lost between turns (prompt shape changed).
+  const ratio = promptTokens > 0 ? cachedTokens / promptTokens : 0
+  if (lastCacheRatio >= 0.5 && ratio < 0.2 && promptTokens > 1500) {
+    store.showToast("prompt cache reset — context will reprocess", "warn")
+  }
+  lastCacheRatio = ratio
   const percent = limit > 0 ? (promptTokens / limit) * 100 : 0
   store.setContextPercent(percent)
   if (percent >= 85 && !warnedContext) {
@@ -210,61 +219,86 @@ async function streamOnce(
     }
   }
 
-  for await (const event of streamChat(
-    { baseURL: options.baseURL, apiKey: options.apiKey },
-    {
-      model: options.model,
-      messages,
-      tools: toolSchemas(options.config.web?.enabled === true, store.mode() === "plan", options.skills),
-      ...samplingParams(options),
-    },
-    options.signal,
-  )) {
-    if (event.type === "reasoning") {
-      if (!firstTokenAt) firstTokenAt = performance.now()
-      if (!firstReasoningAt) firstReasoningAt = performance.now()
-      store.setStatus("thinking")
-      store.setStatusDetail("")
-      reasoning += event.text
-      flush(false)
-    } else if (event.type === "content") {
-      if (!firstTokenAt) {
-        firstTokenAt = performance.now()
-        store.setMetrics({
-          ...store.metrics(),
-          ttft: (firstTokenAt - startedAt) / 1000,
-          model: store.model(),
-          contextLimit: store.modelLimit(),
-        })
-      }
-      if (!firstContentAt && firstReasoningAt) {
-        firstContentAt = performance.now()
-        store.setMessageThinking(assistantId, (firstContentAt - firstReasoningAt) / 1000)
-      }
-      store.setStatus("streaming")
-      store.setStatusDetail("")
-      content += event.text
-      flush(false)
-    } else if (event.type === "toolCall") {
-      toolCallCount.n += 1
-      const entry = toolCalls.get(event.index) ?? { id: event.id ?? `call_${event.index}`, name: "", args: "" }
-      if (event.id) entry.id = event.id
-      if (event.name) {
-        entry.name = event.name
-        store.commitStream()
-        store.addToolPart(assistantId, entry.id, entry.name, "")
-      }
-      if (event.argumentsDelta) {
-        entry.args += event.argumentsDelta
-        // Coalesced: flush() pushes the accumulated args at most every 60ms.
-        flush(false)
-      }
-      toolCalls.set(event.index, entry)
-    } else if (event.type === "usage") {
-      applyUsage(event.usage)
-    } else if (event.type === "finish") {
-      finishReason = event.reason
+  const wantProgress = options.config.omlx?.prefillProgress === true && store.prefillSupported()
+  store.setPrefill(undefined)
+  let streamed = false
+  const markStreamed = () => {
+    if (!streamed) {
+      streamed = true
+      store.setPrefill(undefined)
     }
+  }
+  try {
+    for await (const event of streamChat(
+      { baseURL: options.baseURL, apiKey: options.apiKey },
+      {
+        model: options.model,
+        messages,
+        tools: toolSchemas(options.config.web?.enabled === true, store.mode() === "plan", options.skills),
+        returnProgress: wantProgress,
+        ...samplingParams(options),
+      },
+      options.signal,
+    )) {
+      if (event.type === "progress") {
+        store.setPrefill({ total: event.total, cache: event.cache, processed: event.processed, timeMs: event.timeMs })
+      } else if (event.type === "reasoning") {
+        markStreamed()
+        if (!firstTokenAt) firstTokenAt = performance.now()
+        if (!firstReasoningAt) firstReasoningAt = performance.now()
+        store.setStatus("thinking")
+        store.setStatusDetail("")
+        reasoning += event.text
+        flush(false)
+      } else if (event.type === "content") {
+        markStreamed()
+        if (!firstTokenAt) {
+          firstTokenAt = performance.now()
+          store.setMetrics({
+            ...store.metrics(),
+            ttft: (firstTokenAt - startedAt) / 1000,
+            model: store.model(),
+            contextLimit: store.modelLimit(),
+          })
+        }
+        if (!firstContentAt && firstReasoningAt) {
+          firstContentAt = performance.now()
+          store.setMessageThinking(assistantId, (firstContentAt - firstReasoningAt) / 1000)
+        }
+        store.setStatus("streaming")
+        store.setStatusDetail("")
+        content += event.text
+        flush(false)
+      } else if (event.type === "toolCall") {
+        markStreamed()
+        toolCallCount.n += 1
+        const entry = toolCalls.get(event.index) ?? { id: event.id ?? `call_${event.index}`, name: "", args: "" }
+        if (event.id) entry.id = event.id
+        if (event.name) {
+          entry.name = event.name
+          store.commitStream()
+          store.addToolPart(assistantId, entry.id, entry.name, "")
+        }
+        if (event.argumentsDelta) {
+          entry.args += event.argumentsDelta
+          // Coalesced: flush() pushes the accumulated args at most every 60ms.
+          flush(false)
+        }
+        toolCalls.set(event.index, entry)
+      } else if (event.type === "usage") {
+        applyUsage(event.usage)
+      } else if (event.type === "finish") {
+        finishReason = event.reason
+      }
+    }
+  } catch (err) {
+    // A server that rejects return_progress: stop asking and retry this stream.
+    if (wantProgress && !streamed && /return_progress/i.test((err as Error).message)) {
+      store.setPrefillSupported(false)
+      store.setPrefill(undefined)
+      return streamOnce(options, assistantId)
+    }
+    throw err
   }
   flush(true)
   store.commitStream()

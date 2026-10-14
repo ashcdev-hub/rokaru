@@ -13,7 +13,7 @@ import {
   scanForText,
   sendCanaryProbe,
 } from "./privacyCheck"
-import { listModels, streamChat, type ModelInfo } from "./omlx"
+import { listModelStatus, listModels, loadModel, probeCapabilities, streamChat, type ModelInfo } from "./omlx"
 import { CONFIG_DIR, loadConfig, resolveApiKey } from "./config"
 import * as learning from "./learning"
 import { copyToClipboard } from "./clipboard"
@@ -96,6 +96,12 @@ export function App() {
   const loadModels = async () => {
     setPhase("loading")
     setLoadError("")
+    // Probe health + model residency first; oMLX answers 503 while pinned models
+    // preload, which is transient rather than an error.
+    const caps = await probeCapabilities({ baseURL: config.baseURL, apiKey: resolveApiKey() })
+    store.setServerHealth(caps.health)
+    store.setModelStatus(caps.models)
+    store.setEmbeddingModel(caps.embeddingModel)
     try {
       const models = await listModels({ baseURL: config.baseURL, apiKey: resolveApiKey() })
       if (models.length === 0) {
@@ -106,7 +112,11 @@ export function App() {
       store.setModels(models)
       setPhase("pick")
     } catch (err) {
-      setLoadError(friendlyError(err, { baseURL: config.baseURL }))
+      setLoadError(
+        caps.health.loading
+          ? "oMLX is still loading models… press r to retry."
+          : friendlyError(err, { baseURL: config.baseURL }),
+      )
       setPhase("error")
     }
   }
@@ -148,23 +158,20 @@ export function App() {
 
   // Best-effort warm-up so the first real prompt doesn't pay the model-load /
   // cold-prefill cost. Fired in the background; failures are ignored.
+  const refreshModelStatus = async () => {
+    const status = await listModelStatus({ baseURL: config.baseURL, apiKey: resolveApiKey() })
+    store.setModelStatus(status)
+  }
+
   const warmUp = (modelId: string) => {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 120_000)
+    if (config.omlx?.warmModels === false) return
+    store.setModelLoading(true)
     void (async () => {
-      try {
-        for await (const event of streamChat(
-          { baseURL: config.baseURL, apiKey: resolveApiKey() },
-          { model: modelId, messages: [{ role: "user", content: "hi" }], maxTokens: 1, temperature: 0 },
-          controller.signal,
-        )) {
-          if (event.type === "finish") break
-        }
-      } catch {
-        // ignore: warm-up is optional
-      } finally {
-        clearTimeout(timer)
-      }
+      // POST /models/{id}/load is idempotent and returns once the model is
+      // resident (or immediately if it already was).
+      await loadModel({ baseURL: config.baseURL, apiKey: resolveApiKey() }, modelId)
+      await refreshModelStatus()
+      store.setModelLoading(false)
     })()
   }
 

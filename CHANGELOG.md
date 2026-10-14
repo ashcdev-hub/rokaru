@@ -3,6 +3,34 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.16.0] - 2026-10-14
+
+First part of the oMLX performance work: leverage the server's prefill progress,
+model residency and health endpoints.
+
+### Added
+
+- **Prefill progress.** When oMLX supports `return_progress`, the footer shows a
+  fill bar while the prompt is processed — `prefill 42% · 44k/102k tok · tok/s ·
+  ~eta · cached` — instead of a blank wait. If a server rejects the flag, rokaru
+  retries without it and stops asking.
+- **Model warm-up + residency.** Selecting a model preloads it in the background
+  (`POST /v1/models/{id}/load`), and the sidebar reads `GET /v1/models/status` to
+  show `ready`/`loading`/`idle`, memory size and pinning.
+- **Server capability probe.** Startup reads `GET /health` and `/v1/models/status`
+  and tolerates oMLX's `503 {status:"loading"}` while pinned models preload,
+  instead of treating it as an error.
+- New `omlx` config block (`warmModels`, `prefillProgress`, `tokenCounting`,
+  `embeddings`), all defaulting to `true`.
+
+### Changed
+
+- Tool schemas are emitted in a deterministic order (fixed built-ins, then
+  name-sorted MCP tools) so the tools block stays byte-stable across turns and
+  doesn't bust oMLX's KV/prefix cache.
+- rokaru warns when a large cached prefix is lost between turns (the prompt shape
+  changed), so the extra reprocessing is explained.
+
 ## [0.15.1] - 2026-10-14
 
 ### Added

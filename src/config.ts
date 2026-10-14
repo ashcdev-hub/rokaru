@@ -91,6 +91,19 @@ export interface UiConfig {
   highContrast: boolean
 }
 
+export interface OmlxConfig {
+  // Preload (warm) the selected model in the background so the first turn isn't
+  // a cold load. The model still loads lazily on the first request regardless.
+  warmModels: boolean
+  // Ask oMLX to stream prefill progress (return_progress) so long prompts show a
+  // fill bar instead of a blank wait.
+  prefillProgress: boolean
+  // Use oMLX's tokenizer for accurate counts (falls back to a local estimate).
+  tokenCounting: boolean
+  // Enable semantic search over the workspace when an embedding engine exists.
+  embeddings: boolean
+}
+
 export interface RokaruConfig {
   baseURL: string
   systemPrompt: string
@@ -108,6 +121,7 @@ export interface RokaruConfig {
   diagnostics: DiagnosticsConfig
   learning: LearningConfig
   ui: UiConfig
+  omlx: OmlxConfig
   // Ring the terminal bell when a turn finishes.
   notify: boolean
 }
@@ -173,6 +187,12 @@ export const DEFAULT_CONFIG: RokaruConfig = {
     reduceMotion: false,
     highContrast: false,
   },
+  omlx: {
+    warmModels: true,
+    prefillProgress: true,
+    tokenCounting: true,
+    embeddings: true,
+  },
   notify: true,
 }
 
@@ -212,6 +232,7 @@ function mergeConfig(partial: Partial<RokaruConfig>): RokaruConfig {
     diagnostics: { ...DEFAULT_CONFIG.diagnostics, ...(partial.diagnostics ?? {}) },
     learning: { ...DEFAULT_CONFIG.learning, ...(partial.learning ?? {}) },
     ui: { ...DEFAULT_CONFIG.ui, ...(partial.ui ?? {}) },
+    omlx: { ...DEFAULT_CONFIG.omlx, ...(partial.omlx ?? {}) },
     notify: partial.notify ?? DEFAULT_CONFIG.notify,
   }
 }

@@ -2,7 +2,7 @@
 import { For, Show, createEffect, createSignal, onCleanup, onMount, untrack } from "solid-js"
 import { useTimeline } from "@opentui/solid"
 import { getTheme, sg } from "../theme"
-import { contextPercent, gitBranch, mcpServers, metrics, modelLimit, promptTokens, reduceMotion, sessionStartedAt, todos } from "../store"
+import { contextPercent, gitBranch, mcpServers, metrics, model, modelLimit, modelLoading, modelStatus, promptTokens, reduceMotion, serverHealth, sessionStartedAt, todos } from "../store"
 import { formatCompact, formatInt, formatRate, formatSeconds } from "../metrics"
 import { contextColour } from "../gradient"
 import { VERSION } from "../version"
@@ -16,6 +16,11 @@ function formatSession(ms: number): string {
   if (mins < 60) return `${mins}m`
   const hours = Math.floor(mins / 60)
   return `${hours}h ${mins % 60}m`
+}
+
+function formatGB(bytes: number): string {
+  if (bytes <= 0) return ""
+  return `${(bytes / 1024 ** 3).toFixed(1)} GB`
 }
 
 function Panel(props: { title: string; children: any }) {
@@ -134,6 +139,20 @@ export function Sidebar(props: { width?: number }) {
     return { done, total, filled }
   }
 
+  // Model residency from GET /v1/models/status (+ local warm-up state).
+  const modelLine = () => {
+    if (modelLoading()) return "◌ loading…"
+    const name = model()
+    const entry = modelStatus().find((s) => s.id === name || s.alias === name)
+    if (!entry) return name ? `· ${name}` : ""
+    const state = entry.loaded ? "ready" : entry.is_loading ? "loading…" : "idle"
+    const size = formatGB(entry.actualSize)
+    const bits = [`◍ ${state}`]
+    if (size) bits.push(size)
+    if (entry.pinned) bits.push("pinned")
+    return bits.join(" · ")
+  }
+
   return (
     <box
       width={props.width ?? 32}
@@ -156,6 +175,14 @@ export function Sidebar(props: { width?: number }) {
       </Show>
       <Show when={gitBranch().length > 0}>
         <text fg={getTheme().dim}>{`⎇ ${gitBranch()}`}</text>
+      </Show>
+      <Show when={modelLine().length > 0}>
+        <text fg={modelStatus().find((s) => s.id === model() || s.alias === model())?.loaded ? getTheme().good : getTheme().dim}>
+          {modelLine()}
+        </text>
+      </Show>
+      <Show when={serverHealth()?.loading}>
+        <text fg={getTheme().warn}>oMLX loading models…</text>
       </Show>
 
       <box flexDirection="column" marginTop={1}>

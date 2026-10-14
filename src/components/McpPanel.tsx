@@ -43,6 +43,8 @@ function statusText(server: McpServerInfo): string {
 }
 
 export function McpPanel(props: { servers: McpServerInfo[] }) {
+  const connected = () => props.servers.filter((server) => server.status === "connected").length
+  const anyOn = () => props.servers.some((server) => server.status !== "disabled")
   return (
     <box width="100%" height="100%" flexDirection="column" justifyContent="center" alignItems="center">
       <box
@@ -60,11 +62,21 @@ export function McpPanel(props: { servers: McpServerInfo[] }) {
         </text>
         <text fg={getTheme().dim}>{""}</text>
         <Show when={props.servers.length > 0} fallback={<text fg={getTheme().dim}>(none configured)</text>}>
+          <text>
+            <span {...sg(mcpPanelIndex() === 0 ? getTheme().good : getTheme().dim)}>
+              {mcpPanelIndex() === 0 ? "▶ " : "  "}
+            </span>
+            <span {...sg(anyOn() ? getTheme().good : getTheme().accent)}>{`${anyOn() ? "✓" : "⇅"} `}</span>
+            <span {...sg(getTheme().text)}>{"all servers  "}</span>
+            <span {...sg(getTheme().dim)}>
+              {`${connected()}/${props.servers.length} connected · ${anyOn() ? "disable all" : "enable all"}`}
+            </span>
+          </text>
           <For each={props.servers}>
             {(server, index) => (
               <text>
-                <span {...sg(mcpPanelIndex() === index() ? getTheme().good : getTheme().dim)}>
-                  {mcpPanelIndex() === index() ? "▶ " : "  "}
+                <span {...sg(mcpPanelIndex() === index() + 1 ? getTheme().good : getTheme().dim)}>
+                  {mcpPanelIndex() === index() + 1 ? "▶ " : "  "}
                 </span>
                 <span {...sg(statusColour(server.status))}>{`${statusIcon(server.status)} `}</span>
                 <span {...sg(getTheme().text)}>{`${server.name}  `}</span>

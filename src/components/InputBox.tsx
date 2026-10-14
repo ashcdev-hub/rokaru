@@ -1,9 +1,21 @@
 /** @jsxImportSource @opentui/solid */
-import { createSignal, onMount, Show } from "solid-js"
-import { defaultTextareaKeyBindings, type KeyBinding, type TextareaRenderable } from "@opentui/core"
+import { createSignal, onMount } from "solid-js"
+import { defaultTextareaKeyBindings, SyntaxStyle, type KeyBinding, type TextareaRenderable } from "@opentui/core"
 import { usePaste, useTerminalDimensions } from "@opentui/solid"
 import { getTheme } from "../theme"
-import { consumeInputPrefill, inputHeightOverride, inputValue, pastedLineCount, pastedText, questionTyping, setPastedText, sidebarCols, status } from "../store"
+import {
+  addPasteBlock,
+  clearPasteBlocks,
+  consumeInputPrefill,
+  expandPasteBlocks,
+  inputHeightOverride,
+  inputValue,
+  pasteBlocks,
+  questionTyping,
+  setPasteBlocks,
+  sidebarCols,
+  status,
+} from "../store"
 import { PromptPanel } from "./PromptPanel"
 
 const bindings: KeyBinding[] = [
@@ -32,9 +44,28 @@ const DEFAULT_MAX_ROWS = 10
 const PASTE_COLLAPSE_LINES = 3
 const PASTE_COLLAPSE_CHARS = 200
 
+// Anything bigger than a couple of lines (or one long line) is collapsed to a
+// short "[Pasted N lines]" token instead of being inserted verbatim.
 export function shouldCollapsePaste(text: string): boolean {
   if (text.length === 0) return false
   return text.split("\n").length > PASTE_COLLAPSE_LINES || text.length > PASTE_COLLAPSE_CHARS
+}
+
+// A single syntax style/background used for pasted ranges. Built lazily on the
+// first InputBox mount (the native render lib must be up first).
+const PASTE_STYLE_NAME = "rokaru.paste"
+let pasteStyle: SyntaxStyle | undefined
+let pasteStyleId = -1
+function ensurePasteStyle(): number {
+  try {
+    if (!pasteStyle) {
+      pasteStyle = SyntaxStyle.fromStyles({ [PASTE_STYLE_NAME]: { bg: getTheme().track } })
+      pasteStyleId = pasteStyle.resolveStyleId(PASTE_STYLE_NAME) ?? -1
+    }
+  } catch {
+    pasteStyleId = -1
+  }
+  return pasteStyleId
 }
 
 export function InputBox(props: {
@@ -53,8 +84,9 @@ export function InputBox(props: {
   usePaste((event: any) => {
     const text = new TextDecoder().decode(event.bytes ?? new Uint8Array())
     if (!shouldCollapsePaste(text)) return
+    // Collapse the paste to a highlighted token, inserted at the cursor.
     event.preventDefault()
-    setPastedText((prev) => (prev ? `${prev}\n${text}` : text))
+    ref?.insertText(addPasteBlock(text))
   })
 
   const innerWidth = () => Math.max(20, (dims()?.width ?? 100) - sidebarCols() - 7)
@@ -70,29 +102,38 @@ export function InputBox(props: {
   const submit = () => {
     if (!ref) return
     if (busy() && !questionTyping()) return
-    const text = ref.plainText.trim()
-    if (text.length === 0 && pastedText().length === 0) return
+    const text = expandPasteBlocks(ref.plainText).trim()
+    if (text.length === 0) return
     ref.clear()
     setContent("")
+    clearPasteBlocks()
     props.onContentChange?.("")
     props.onSubmit(text)
   }
 
-  let collapsing = false
-  const track = (value: string) => {
-    if (!collapsing && value.length > 0 && neededRows(value) > maxRows()) {
-      collapsing = true
-      try {
-        setPastedText((prev) => (prev ? `${prev}\n${value}` : value))
-        ref?.clear()
-        setContent("")
-        props.onContentChange?.("")
-      } finally {
-        collapsing = false
+  // Highlights track the paste tokens by rescanning on every change, so a
+  // deleted or edited token never leaves its highlight behind.
+  const syncPasteHighlights = (value: string) => {
+    const styleId = ensurePasteStyle()
+    if (styleId < 0 || !ref) return
+    ref.clearAllHighlights()
+    for (const block of pasteBlocks()) {
+      let from = 0
+      for (;;) {
+        const at = value.indexOf(block.label, from)
+        if (at < 0) break
+        ref.addHighlightByCharRange({ start: at, end: at + block.label.length, styleId })
+        from = at + block.label.length
       }
-      return
     }
+  }
+
+  const track = (value: string) => {
     setContent(value)
+    syncPasteHighlights(value)
+    // Drop any stashed paste whose token is no longer in the draft.
+    const live = pasteBlocks().filter((block) => value.includes(block.label))
+    if (live.length !== pasteBlocks().length) setPasteBlocks(live)
     props.onContentChange?.(value)
   }
 
@@ -110,6 +151,7 @@ export function InputBox(props: {
       focus: () => ref?.focus(),
     }
     props.onReady?.(handle)
+    if (ref && ensurePasteStyle() >= 0 && pasteStyle) ref.syntaxStyle = pasteStyle
     // Keep the draft across screen changes (palette, MCP/theme panels, model
     // picker): restore whatever was last in the box, unless a command prefill
     // is explicitly replacing it.
@@ -122,12 +164,7 @@ export function InputBox(props: {
   })
 
   return (
-    <PromptPanel height={rows() + 3 + (pastedLineCount() > 0 ? 1 : 0)}>
-      <Show when={pastedLineCount() > 0}>
-        <text fg={getTheme().accent}>
-          {`📎 Pasted ${pastedLineCount()} line${pastedLineCount() === 1 ? "" : "s"} · send with your message · ⌫ to drop`}
-        </text>
-      </Show>
+    <PromptPanel height={rows() + 3}>
       <textarea
         ref={(el: TextareaRenderable) => (ref = el)}
         focused={props.focused ?? true}

@@ -226,6 +226,25 @@ const BUILTIN_THEMES: Record<string, Theme> = {
     panelBg: "#0b0f14",
     panelBorder: "#6b7d99",
   },
+  // Warm after-dark glow: amber, cyan, pink and green on a deep brown-black.
+  afterglow: {
+    text: "#f8f8f2",
+    body: "#f8f8f2",
+    dim: "#75715e",
+    good: "#a6e22e",
+    warn: "#fd971f",
+    bad: "#f92672",
+    track: "#49483e",
+    accent: "#e6db74",
+    blue: "#66d9ef",
+    tool: "#ae81ff",
+    build: "#e6db74",
+    plan: "#66d9ef",
+    meter: "#ae81ff",
+    background: "#272822",
+    panelBg: "#2d2e27",
+    panelBorder: "#49483e",
+  },
 }
 
 // Live registry: built-ins plus any custom themes added this session.
@@ -362,6 +381,16 @@ export const THEME_COLOURS: string[] = [
   "#7b3fb0",
   "#9ccfd8",
   "#00e5ff",
+  "#f8f8f2",
+  "#75715e",
+  "#f92672",
+  "#fd971f",
+  "#e6db74",
+  "#a6e22e",
+  "#66d9ef",
+  "#ae81ff",
+  "#49483e",
+  "#272822",
 ]
 
 export const THEME_ROLE_LABELS: Record<string, string> = {

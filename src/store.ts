@@ -324,19 +324,39 @@ export function findMessageHits(query: string): number[] {
   return hits
 }
 
-// Large pastes are collapsed to a "Pasted N lines" attachment row instead of
-// going into the textarea, so the prompt box stays compact. The full text is
-// folded into the message on submit.
-export const [pastedText, setPastedText] = createSignal("")
-
-export function pastedLineCount(): number {
-  const text = pastedText()
-  if (text.length === 0) return 0
-  return text.split("\n").length
+// Large pastes land inline as a short highlighted token (e.g. "[Pasted 10
+// lines]"); the real text is stashed here and expanded again on submit.
+export interface PasteBlock {
+  id: string
+  label: string
+  text: string
 }
 
-export function clearPastedText(): void {
-  setPastedText("")
+export const [pasteBlocks, setPasteBlocks] = createSignal<PasteBlock[]>([])
+
+export function addPasteBlock(text: string): string {
+  const lines = text.length === 0 ? 0 : text.split("\n").length
+  const unit = `line${lines === 1 ? "" : "s"}`
+  const base = `[Pasted ${lines} ${unit}]`
+  const taken = new Set(pasteBlocks().map((block) => block.label))
+  let label = base
+  let n = 2
+  while (taken.has(label)) label = `[Pasted ${lines} ${unit} #${n++}]`
+  setPasteBlocks((prev) => [...prev, { id: nextId("paste"), label, text }])
+  return label
+}
+
+export function clearPasteBlocks(): void {
+  setPasteBlocks([])
+}
+
+// Replace every paste token still present in the prompt with its original text.
+export function expandPasteBlocks(text: string): string {
+  let out = text
+  for (const block of pasteBlocks()) {
+    if (out.includes(block.label)) out = out.split(block.label).join(block.text)
+  }
+  return out
 }
 
 export function addUserMessage(text: string, images?: string[]): void {
@@ -657,7 +677,7 @@ export function resetSession(): void {
   setAllowedCommands([])
   setAutoApprove(false)
   setPendingImages([])
-  setPastedText("")
+  setPasteBlocks([])
   setTodos([])
   setStatus("idle")
   setStatusDetail("")

@@ -1,5 +1,8 @@
+import { mkdirSync } from "node:fs"
+import { dirname, isAbsolute, resolve } from "node:path"
 import type { WebConfig } from "../config"
-import { webFetchPage, webSearch } from "../web"
+import { downloadToFile, webFetchPage, webSearch } from "../web"
+import { assertWritable } from "./fs"
 import type { ToolContext, ToolDef } from "./types"
 
 function webConfig(ctx: ToolContext): WebConfig {
@@ -47,5 +50,32 @@ export const webFetchTool: ToolDef = {
     if (url.length === 0) throw new Error("empty url")
     const { text } = await webFetchPage(url, config)
     return text.length > 0 ? text : "(empty page)"
+  },
+}
+
+export const webDownloadTool: ToolDef = {
+  name: "web_download",
+  description:
+    "Download a file from a public http(s) URL and save the raw bytes into the workspace (read-only GET; never uploads). Use for binaries, archives or images that web_fetch cannot read as text. Returns the saved path and byte count.",
+  destructive: true,
+  parameters: {
+    type: "object",
+    properties: {
+      url: { type: "string", description: "Public http(s) URL to download" },
+      path: { type: "string", description: "Destination path, relative to the workspace unless absolute" },
+    },
+    required: ["url", "path"],
+  },
+  async run(args, ctx) {
+    const config = webConfig(ctx)
+    const url = String(args?.url ?? "").trim()
+    const path = String(args?.path ?? "").trim()
+    if (url.length === 0) throw new Error("empty url")
+    if (path.length === 0) throw new Error("empty path")
+    const target = isAbsolute(path) ? path : resolve(ctx.workspace, path)
+    assertWritable(ctx, target)
+    mkdirSync(dirname(target), { recursive: true })
+    const result = await downloadToFile(url, target, config, { signal: ctx.signal })
+    return `downloaded ${result.bytes} bytes to ${target}\ncontent-type: ${result.contentType || "(unknown)"}`
   },
 }

@@ -5,7 +5,7 @@ import { viewImageTool } from "./image"
 import { questionTool } from "./question"
 import { taskTool } from "./task"
 import { todoWriteTool } from "./todo"
-import { webFetchTool, webSearchTool } from "./web"
+import { webDownloadTool, webFetchTool, webSearchTool } from "./web"
 import { dynamicToolList, getDynamicTool } from "./registry"
 import { skillTool } from "./skill"
 import type { ToolDef } from "./types"
@@ -23,6 +23,7 @@ export const TOOLS: ToolDef[] = [
   todoWriteTool,
   webSearchTool,
   webFetchTool,
+  webDownloadTool,
   writeFileTool,
   editFileTool,
   replaceInFilesTool,
@@ -38,7 +39,7 @@ export function getTool(name: string): ToolDef | undefined {
   return TOOL_MAP.get(name) ?? getDynamicTool(name)
 }
 
-const WEB_TOOLS = new Set(["web_search", "web_fetch"])
+const WEB_TOOLS = new Set(["web_search", "web_fetch", "web_download"])
 
 // A rendered `skill` tool schema. The description advertises the invocable
 // skills (id + name + description) so the model knows they exist; the model

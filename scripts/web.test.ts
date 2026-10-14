@@ -42,6 +42,14 @@ check(
   "schemas: web tools shown when enabled",
   toolSchemas(true).some((t) => t.function.name === "web_search"),
 )
+check(
+  "schemas: download hidden when disabled",
+  !toolSchemas(false).some((t) => t.function.name === "web_download"),
+)
+check(
+  "schemas: download shown when enabled",
+  toolSchemas(true).some((t) => t.function.name === "web_download"),
+)
 
 // --- live network ---
 const cfg = { ...DEFAULT_CONFIG.web, enabled: true, maxResults: 4 }

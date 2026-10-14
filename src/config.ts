@@ -2,6 +2,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "n
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { spawnSync } from "node:child_process"
+import type { Theme } from "./theme"
 
 export interface SamplingConfig {
   temperature: number
@@ -30,6 +31,10 @@ export interface WebConfig {
   timeoutMs: number
   // Only allow fetching URLs that came back from a web_search this session.
   fetchOnlySearchResults: boolean
+  // Cap on bytes a single web_download may save (default 256 MB).
+  downloadMaxBytes: number
+  // Timeout for a single web_download, in ms (default 5 minutes).
+  downloadTimeoutMs: number
 }
 
 export interface McpServerConfig {
@@ -89,6 +94,10 @@ export interface UiConfig {
   reduceMotion: boolean
   // Start in the high-contrast palette. Also enabled by NO_COLOR.
   highContrast: boolean
+  // Theme applied on startup: a built-in name or a saved custom theme name.
+  theme: string
+  // A user-built custom theme, saved so it survives a restart.
+  customTheme?: { name: string; palette: Theme }
 }
 
 export interface OmlxConfig {
@@ -162,6 +171,8 @@ export const DEFAULT_CONFIG: RokaruConfig = {
     maxBytes: 600_000,
     timeoutMs: 15_000,
     fetchOnlySearchResults: true,
+    downloadMaxBytes: 268_435_456,
+    downloadTimeoutMs: 300_000,
   },
   mcp: {
     servers: {},
@@ -186,6 +197,7 @@ export const DEFAULT_CONFIG: RokaruConfig = {
   ui: {
     reduceMotion: false,
     highContrast: false,
+    theme: "onyx",
   },
   omlx: {
     warmModels: true,
@@ -212,6 +224,12 @@ function writePrivate(path: string, contents: string): void {
   } catch {
     // best effort
   }
+}
+
+// Persist the config (used to remember UI preferences like the theme).
+export function saveConfig(config: RokaruConfig): void {
+  ensureDir(CONFIG_DIR)
+  writePrivate(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n")
 }
 
 function mergeConfig(partial: Partial<RokaruConfig>): RokaruConfig {

@@ -3,6 +3,34 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.17.0] - 2026-10-14
+
+### Added
+
+- **`web_download` tool.** A third read-only web tool that saves a file from a
+  public http(s) URL straight into the workspace, for binaries, archives and
+  images `web_fetch` can't read as text. It streams the bytes to disk (never
+  uploads), re-checks every redirect, and refuses private/loopback/metadata
+  addresses exactly like the other web tools. Its size and time caps are separate
+  from `web_fetch` (`web.downloadMaxBytes`, 256 MB; `web.downloadTimeoutMs`,
+  5 min). It's destructive, so it asks for permission and is hidden in plan mode.
+- **Enable/disable all MCP servers at once.** The `/mcp` panel now has an
+  `all servers` row at the top: press `enter` to switch every server on, and
+  `enter` again to switch them all off. Individual per-server toggling is
+  unchanged.
+- **Remembered theme.** The chosen palette is now saved and restored on the next
+  launch, including a custom palette built in the editor (`ui.theme`,
+  `ui.customTheme`).
+- **`afterglow` palette**, a warm after-dark theme.
+
+### Changed
+
+- **Pasted text collapses to an inline token.** Anything longer than a couple of
+  lines (or one long line) is pasted as a short, highlighted `[Pasted N lines]`
+  token right where your cursor is, instead of a separate row at the top of the
+  prompt. The full text is restored when you send. The highlight tracks the
+  token, so deleting it leaves nothing behind.
+
 ## [0.16.2] - 2026-10-14
 
 ### Added

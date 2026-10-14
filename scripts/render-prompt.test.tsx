@@ -62,16 +62,13 @@ handle?.clear()
 
 handle?.setText(Array.from({ length: 12 }, (_, i) => `line ${i + 1}`).join("\n"))
 await chat.flush()
-const overCapTextareaEmpty = (handle?.getText() ?? "") === ""
-const overCapStashLines = store.pastedText().split("\n").length
-const overCapNotice = chat.captureCharFrame().includes("Pasted 12 lines")
-store.clearPastedText()
+const overCapKept = (handle?.getText() ?? "").split("\n").length === 12
 handle?.clear()
 
 const pasteProbe: any = chat as any
 await pasteProbe.mockInput.pasteBracketedText("hello")
 await chat.flush()
-const smallPasteKept = (handle?.getText() ?? "").includes("hello") && store.pastedText() === ""
+const smallPasteKept = (handle?.getText() ?? "").includes("hello")
 handle?.clear()
 
 const bigPaste = Array.from({ length: 30 }, (_, i) => `pasted line ${i + 1}`).join("\n")
@@ -79,11 +76,10 @@ await pasteProbe.mockInput.pasteBracketedText(bigPaste)
 await chat.flush()
 await new Promise((r) => setTimeout(r, 100))
 await chat.flush()
-const collapsedTextareaEmpty = (handle?.getText() ?? "") === ""
-const collapsedStashLines = store.pastedText().split("\n").length
-const collapsedFrame = chat.captureCharFrame()
-const collapsedHeight = panelHeight(collapsedFrame)
-store.clearPastedText()
+const bigPasteToken = (handle?.getText() ?? "") === "[Pasted 30 lines]"
+const bigPasteStashed = store.pasteBlocks().length === 1
+const bigPasteExpands = store.expandPasteBlocks(handle?.getText() ?? "") === bigPaste
+store.clearPasteBlocks()
 handle?.clear()
 
 const idleClean = !emptyFrame.includes("message · /") && emptyFrame.includes("Build")
@@ -179,9 +175,9 @@ const checks: [string, boolean][] = [
   ["input caps at ten rows", tenLineHeight === 13],
   ["small pastes stay inline", smallPasteKept],
   ["collapse policy", !shouldCollapsePaste("hi") && !shouldCollapsePaste("") && shouldCollapsePaste("a\nb\nc\nd") && shouldCollapsePaste("x".repeat(201))],
-  ["big paste stays out of the box", collapsedTextareaEmpty && collapsedStashLines === 30],
-  ["pasted row shown, box stays compact", collapsedFrame.includes("Pasted 30 lines") && collapsedHeight === 7],
-  ["over-max content collapses to notice", overCapTextareaEmpty && overCapStashLines === 12 && overCapNotice],
+  ["big paste becomes a token", bigPasteToken && bigPasteStashed],
+  ["token expands back to the paste", bigPasteExpands],
+  ["over-max content stays inline", overCapKept],
   ["idle box has no helper text", idleClean],
   ["busy status stays in the box", busyHasStatus],
   ["permission shows in the prompt", permFrame.includes("permission") && permFrame.includes("bash") && permFrame.includes("$ rm -rf ./tmp && echo hi")],

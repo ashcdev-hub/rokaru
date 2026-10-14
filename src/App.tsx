@@ -14,7 +14,7 @@ import {
   sendCanaryProbe,
 } from "./privacyCheck"
 import { listModelStatus, listModels, loadModel, probeCapabilities, streamChat, type ModelInfo } from "./omlx"
-import { CONFIG_DIR, loadConfig, resolveApiKey } from "./config"
+import { CONFIG_DIR, loadConfig, resolveApiKey, saveConfig } from "./config"
 import * as learning from "./learning"
 import { copyToClipboard } from "./clipboard"
 import { COMMANDS, matchCommands, orderedMenuCommands, resolveCommandName } from "./commands"
@@ -91,7 +91,15 @@ export function App() {
   // Resolve UI preferences before the first render so reduce-motion/contrast
   // take effect on the startup screen too.
   store.setReduceMotion(config.ui.reduceMotion || noColour())
-  if (config.ui.highContrast || noColour()) setCurrentTheme("contrast")
+  if (config.ui.highContrast || noColour()) {
+    setCurrentTheme("contrast")
+  } else {
+    // Restore the theme remembered from the last session (custom themes are
+    // re-registered from config first).
+    const savedCustom = config.ui.customTheme
+    if (savedCustom && !THEMES[savedCustom.name]) addCustomTheme(savedCustom.name, savedCustom.palette)
+    if (config.ui.theme) setCurrentTheme(config.ui.theme)
+  }
 
   const loadModels = async () => {
     setPhase("loading")
@@ -218,7 +226,7 @@ export function App() {
         "  /clear          clear the conversation",
         "  /new            start a new conversation",
         "  /help           show this list",
-        "  /mcp            list connected MCP servers",
+        "  /mcp            enable/disable MCP servers (all or each)",
         "  /skills         list available skills",
         "  /purge-cache    delete oMLX session KV-cache (server must be stopped)",
         "  /privacy-check  send a canary request and scan oMLX for leaked session data",
@@ -685,37 +693,76 @@ export function App() {
   const visiblePaletteActions = () => filterPaletteActions(paletteActions(), store.paletteQuery())
 
   // MCP servers are toggled here, per session only (never autostarted).
-  const toggleMcp = async (index: number) => {
-    const entry = store.mcpServers()[index]
-    if (!entry) return
-    const serverConfig = config.mcp?.servers?.[entry.name]
+  const disableMcpByName = (name: string) => {
+    disconnectServer(name)
+    unregisterDynamicTools(mcpToolNames.get(name) ?? [])
+    mcpToolNames.delete(name)
+    updateMcpStatus(name, { status: "disabled", tools: 0, error: undefined })
+  }
+
+  const enableMcpByName = async (name: string) => {
+    const serverConfig = config.mcp?.servers?.[name]
     if (!serverConfig) return
-    if (entry.status === "connected") {
-      disconnectServer(entry.name)
-      unregisterDynamicTools(mcpToolNames.get(entry.name) ?? [])
-      mcpToolNames.delete(entry.name)
-      updateMcpStatus(entry.name, { status: "disabled", tools: 0, error: undefined })
-      store.showToast(`mcp ${entry.name}: off`, "info")
-      return
-    }
-    updateMcpStatus(entry.name, { status: "connecting", tools: 0, error: undefined })
-    const result = await connectServer(entry.name, serverConfig, {
+    updateMcpStatus(name, { status: "connecting", tools: 0, error: undefined })
+    const result = await connectServer(name, serverConfig, {
       trimDescriptions: config.mcp.trimDescriptions === true,
     })
     if (result.error) {
-      updateMcpStatus(entry.name, { status: "error", tools: 0, error: result.error })
-      store.showToast(`mcp ${entry.name}: ${result.error}`, "error")
+      updateMcpStatus(name, { status: "error", tools: 0, error: result.error })
+      store.showToast(`mcp ${name}: ${result.error}`, "error")
     } else {
       registerDynamicTools(result.tools)
-      mcpToolNames.set(entry.name, result.toolNames)
-      updateMcpStatus(entry.name, { status: "connected", tools: result.tools.length })
-      store.showToast(`mcp ${entry.name}: ${result.tools.length} tools`)
+      mcpToolNames.set(name, result.toolNames)
+      updateMcpStatus(name, { status: "connected", tools: result.tools.length })
+      store.showToast(`mcp ${name}: ${result.tools.length} tools`)
+    }
+  }
+
+  // Individual toggle: turn a connected server off, or (re)connect anything else.
+  const toggleMcpByName = async (name: string) => {
+    const entry = store.mcpServers().find((server) => server.name === name)
+    if (!entry) return
+    if (entry.status === "connected") {
+      disableMcpByName(name)
+      store.showToast(`mcp ${name}: off`, "info")
+      return
+    }
+    await enableMcpByName(name)
+  }
+
+  const toggleMcp = (index: number) => {
+    const entry = store.mcpServers()[index]
+    if (entry) void toggleMcpByName(entry.name)
+  }
+
+  // All-or-nothing: enable every server, or turn them all off if any is on.
+  const toggleAllMcp = async () => {
+    const servers = store.mcpServers()
+    if (servers.length === 0) return
+    const anyOn = servers.some((server) => server.status !== "disabled")
+    if (anyOn) {
+      for (const server of servers) {
+        if (server.status !== "disabled") disableMcpByName(server.name)
+      }
+      store.showToast("mcp: all off", "info")
+    } else {
+      for (const server of servers) await enableMcpByName(server.name)
+      store.showToast("mcp: all on")
     }
   }
 
   // Theme editor actions (keyboard-driven from the /themes panel).
+  // Remember the chosen theme in config so it's restored next session.
+  const rememberTheme = (name: string) => {
+    config.ui.theme = name
+    saveConfig(config)
+  }
+
   const applyTheme = (name: string) => {
-    if (setCurrentTheme(name)) store.showToast(`theme · ${name}`)
+    if (setCurrentTheme(name)) {
+      rememberTheme(name)
+      store.showToast(`theme · ${name}`)
+    }
     store.setThemePanel(false)
   }
 
@@ -751,6 +798,9 @@ export function App() {
       return
     }
     setCurrentTheme(name)
+    // Save the custom palette so it survives a restart.
+    config.ui.customTheme = { name, palette: { ...draft } }
+    rememberTheme(name)
     cancelCustomTheme()
     store.setThemePanel(false)
     store.showToast(`theme · ${name} (created)`)
@@ -788,17 +838,13 @@ export function App() {
     const typing = store.questionTyping()
     const pendingQuestion = store.question()
     if (typing && pendingQuestion) {
-      const stash = store.pastedText()
-      const answer = (text + (stash ? `\n${stash}` : "")).trim()
+      const answer = text.trim()
       if (answer.length === 0) return
       inputHandle?.clear()
-      store.clearPastedText()
       store.answerQuestion({ kind: "custom", text: answer })
       return
     }
-    const stash = store.pastedText()
-    const full = (text + (stash ? `\n${stash}` : "")).trim()
-    store.clearPastedText()
+    const full = text.trim()
     if (busy()) {
       queued = full
       store.showToast("queued — will send when the model is free", "info")
@@ -959,6 +1005,7 @@ export function App() {
 
     if (store.mcpPanel()) {
       const list = store.mcpServers()
+      // Index 0 is the "all servers" row; servers start at 1.
       if (key.name === "escape") {
         key.preventDefault()
         store.setMcpPanel(false)
@@ -967,10 +1014,11 @@ export function App() {
         store.setMcpPanelIndex(Math.max(0, store.mcpPanelIndex() - 1))
       } else if (key.name === "down") {
         key.preventDefault()
-        store.setMcpPanelIndex(Math.min(Math.max(0, list.length - 1), store.mcpPanelIndex() + 1))
+        store.setMcpPanelIndex(Math.min(list.length, store.mcpPanelIndex() + 1))
       } else if (key.name === "return" || key.name === "enter" || key.name === "space") {
         key.preventDefault()
-        void toggleMcp(store.mcpPanelIndex())
+        if (store.mcpPanelIndex() === 0) void toggleAllMcp()
+        else toggleMcp(store.mcpPanelIndex() - 1)
       }
       return
     }
@@ -1215,15 +1263,6 @@ export function App() {
 
     // Menu/history keys only apply to the chat prompt, not the model picker.
     if (phase() === "ready" && !busy()) {
-      if (
-        (key.name === "backspace" || key.name === "delete") &&
-        store.pastedText().length > 0 &&
-        store.inputValue() === ""
-      ) {
-        key.preventDefault()
-        store.clearPastedText()
-        return
-      }
       const mention = mentionMatches(store.inputValue(), workspace)
       if (mention) {
         if (key.name === "up") {

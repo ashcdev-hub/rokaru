@@ -1,4 +1,8 @@
 import { lookup } from "node:dns/promises"
+import { createWriteStream } from "node:fs"
+import { unlink } from "node:fs/promises"
+import { Readable, Transform } from "node:stream"
+import { pipeline } from "node:stream/promises"
 import type { WebConfig } from "./config"
 
 const REDIRECT_LIMIT = 5
@@ -354,6 +358,83 @@ export async function webSearch(query: string, config: WebConfig): Promise<Searc
     }
   }
   return []
+}
+
+async function streamToFile(res: Response, destPath: string, maxBytes: number): Promise<number> {
+  if (!res.body) {
+    const buffer = Buffer.from(await res.arrayBuffer())
+    if (buffer.byteLength > maxBytes) throw new Error(`download exceeds the ${maxBytes}-byte limit`)
+    await Bun.write(destPath, buffer)
+    return buffer.byteLength
+  }
+  let total = 0
+  const limiter = new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      total += chunk.length
+      if (total > maxBytes) callback(new Error(`download exceeds the ${maxBytes}-byte limit`))
+      else callback(null, chunk)
+    },
+  })
+  await pipeline(Readable.fromWeb(res.body as never), limiter, createWriteStream(destPath))
+  return total
+}
+
+export interface DownloadResult {
+  url: string
+  bytes: number
+  contentType: string
+}
+
+// Download a URL to a local file, following redirects and re-checking each hop.
+// Unlike web_fetch, this streams raw bytes and is not limited to the search
+// allowlist; it still refuses private/loopback addresses and non-http schemes.
+export async function downloadToFile(
+  url: string,
+  destPath: string,
+  config: WebConfig,
+  options: { signal?: AbortSignal } = {},
+): Promise<DownloadResult> {
+  let current = url
+  for (let hop = 0; hop <= REDIRECT_LIMIT; hop++) {
+    const parsed = new URL(current)
+    assertFetchable(parsed)
+    await assertPublicHost(parsed.hostname)
+
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), config.downloadTimeoutMs)
+    const signal =
+      options.signal && "any" in AbortSignal
+        ? AbortSignal.any([options.signal, controller.signal])
+        : (options.signal ?? controller.signal)
+    try {
+      const res = await fetch(current, {
+        method: "GET",
+        redirect: "manual",
+        signal,
+        headers: { "User-Agent": USER_AGENT, "Accept-Language": "en-US,en;q=0.9", Accept: "*/*" },
+      })
+      if (res.status >= 300 && res.status < 400) {
+        const location = res.headers.get("location")
+        if (!location) throw new Error(`redirect without a location (HTTP ${res.status})`)
+        current = new URL(location, current).toString()
+        continue
+      }
+      if (res.status >= 400) throw new Error(`HTTP ${res.status} for ${current}`)
+      const declared = Number(res.headers.get("content-length") ?? "")
+      if (Number.isFinite(declared) && declared > config.downloadMaxBytes) {
+        throw new Error(`download too large: ${declared} bytes exceeds the ${config.downloadMaxBytes}-byte limit`)
+      }
+      const contentType = res.headers.get("content-type") ?? ""
+      const bytes = await streamToFile(res, destPath, config.downloadMaxBytes)
+      return { url: current, bytes, contentType }
+    } catch (error) {
+      await unlink(destPath).catch(() => {})
+      throw error
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+  throw new Error("too many redirects")
 }
 
 export async function webFetchPage(url: string, config: WebConfig): Promise<{ url: string; text: string }> {

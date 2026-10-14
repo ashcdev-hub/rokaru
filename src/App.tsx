@@ -1087,6 +1087,9 @@ export function App() {
       } else if (key.name === "return" || key.name === "enter") {
         key.preventDefault()
         store.selectQuestionRow(store.questionIndex())
+      } else if (key.name === "s" && pendingQuestion.multiSelect) {
+        key.preventDefault()
+        store.submitMultiQuestion()
       } else if (key.name === "escape") {
         key.preventDefault()
         store.answerQuestion({ kind: "dismissed" })

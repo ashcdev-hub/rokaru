@@ -443,6 +443,7 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
       try {
         const parsed = parseArgs(call.args)
         const questionText = String(parsed?.question ?? "").trim()
+        const multiSelect = parsed?.multiSelect === true
         const rawOptions = Array.isArray(parsed?.options) ? parsed.options : []
         const options = rawOptions
           .map((entry: any) =>
@@ -457,13 +458,15 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
           store.updateToolPart(assistantId, call.id, { status: "error", result, durationMs: performance.now() - startedAt })
           return result
         }
-        const answer = await store.requestQuestion(call.id, questionText, options)
+        const answer = await store.requestQuestion(call.id, questionText, options, multiSelect)
         const result =
           answer.kind === "option"
             ? `Q: ${questionText}\nA: ${answer.label}`
-            : answer.kind === "custom"
-              ? `Q: ${questionText}\nA (typed by the user): ${answer.text}`
-              : `Q: ${questionText}\nA: the user dismissed the question without answering`
+            : answer.kind === "multi"
+              ? `Q: ${questionText}\nA: [${answer.labels.join(", ")}]`
+              : answer.kind === "custom"
+                ? `Q: ${questionText}\nA (typed by the user): ${answer.text}`
+                : `Q: ${questionText}\nA: the user dismissed the question without answering`
         store.updateToolPart(assistantId, call.id, { status: "ok", result, durationMs: performance.now() - startedAt })
         return capResult(result)
       } catch (err) {

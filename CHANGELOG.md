@@ -3,6 +3,25 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.14.0] - 2026-10-14
+
+### Added
+
+- **Multi-select question tool.** The `question` tool takes an optional
+  `multiSelect: true`; the panel then shows checkboxes (`☑`/`☐`), an
+  `N selected` count and a `✓ submit` row. `enter` toggles an option and `s`
+  submits the set, which the model receives as `A: [label1, label2]`. Single
+  select is unchanged.
+- A **distinct fill for checked options** (the theme's `tool` colour) so the
+  whole choice stands out rather than only the tick glyph.
+
+### Fixed
+
+- **Row highlights no longer stick.** opentui keeps a span's previous background
+  when the new style passes `bg: undefined`, so previously visited rows stayed
+  highlighted in the **question** and **permission** panels. Non-highlighted rows
+  now set an explicit background, so the highlight follows the cursor cleanly.
+
 ## [0.13.0] - 2026-10-14
 
 Third visual/UX pass: the transcript gains a conversation thread view and

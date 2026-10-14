@@ -498,6 +498,7 @@ export interface QuestionOption {
 
 export type QuestionAnswer =
   | { kind: "option"; index: number; label: string }
+  | { kind: "multi"; indices: number[]; labels: string[] }
   | { kind: "custom"; text: string }
   | { kind: "dismissed" }
 
@@ -505,12 +506,24 @@ export interface QuestionRequest {
   toolCallId: string
   question: string
   options: QuestionOption[]
+  // When true the panel shows checkboxes and the answer is a set of options.
+  multiSelect?: boolean
   resolve: (answer: QuestionAnswer) => void
 }
 
 export const [question, setQuestion] = createSignal<QuestionRequest | undefined>(undefined)
 export const [questionIndex, setQuestionIndex] = createSignal(0)
 export const [questionTyping, setQuestionTyping] = createSignal(false)
+// Checked state per option (multi-select only).
+export const [selectedOptions, setSelectedOptions] = createSignal<boolean[]>([])
+
+export function selectedCount(): number {
+  return selectedOptions().filter(Boolean).length
+}
+
+export function toggleOption(index: number): void {
+  setSelectedOptions((prev) => prev.map((checked, i) => (i === index ? !checked : checked)))
+}
 
 export function questionRowCount(): number {
   const pending = question()
@@ -518,12 +531,18 @@ export function questionRowCount(): number {
   return pending.options.length + 1
 }
 
-export function requestQuestion(toolCallId: string, questionText: string, options: QuestionOption[]): Promise<QuestionAnswer> {
+export function requestQuestion(
+  toolCallId: string,
+  questionText: string,
+  options: QuestionOption[],
+  multiSelect = false,
+): Promise<QuestionAnswer> {
   return new Promise((resolve) => {
     setStatus("tool")
     setQuestionIndex(0)
     setQuestionTyping(false)
-    setQuestion({ toolCallId, question: questionText, options, resolve })
+    setSelectedOptions(options.map(() => false))
+    setQuestion({ toolCallId, question: questionText, options, multiSelect, resolve })
   })
 }
 
@@ -536,18 +555,34 @@ export function answerQuestion(answer: QuestionAnswer): void {
   if (!current) return
   setQuestion(undefined)
   setQuestionTyping(false)
+  setSelectedOptions([])
   setStatus("tool")
   current.resolve(answer)
+}
+
+// Submit every checked option (multi-select mode).
+export function submitMultiQuestion(): void {
+  const pending = question()
+  if (!pending) return
+  const indices = selectedOptions()
+    .map((checked, index) => (checked ? index : -1))
+    .filter((index) => index >= 0)
+  const labels = indices.map((index) => pending.options[index]?.label ?? "")
+  answerQuestion({ kind: "multi", indices, labels })
 }
 
 export function selectQuestionRow(row: number): void {
   const pending = question()
   if (!pending) return
   if (row < pending.options.length) {
-    const label = pending.options[row]?.label ?? ""
-    answerQuestion({ kind: "option", index: row, label })
+    if (pending.multiSelect) {
+      toggleOption(row)
+    } else {
+      answerQuestion({ kind: "option", index: row, label: pending.options[row]?.label ?? "" })
+    }
   } else if (row === pending.options.length) {
-    setQuestionTyping(true)
+    if (pending.multiSelect) submitMultiQuestion()
+    else setQuestionTyping(true)
   }
 }
 
@@ -570,6 +605,7 @@ export function resetSession(): void {
   setStreamBuffer(undefined)
   setPermission(undefined)
   setQuestion(undefined)
+  setSelectedOptions([])
   setCollapsedTurns({})
   setQuestionTyping(false)
   setConfirmRequest(undefined)

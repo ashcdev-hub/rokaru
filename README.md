@@ -159,7 +159,9 @@ shapes and masked before it reaches the model.
 Type `@` in the prompt to open a floating file card (fuzzy match on the current
 query, ignoring `.git`/`node_modules`); **Tab** inserts the path. The `question`
 tool is likewise a card: pick a row with `↑↓`/`1-6`, `enter` to answer, `esc` to
-dismiss, or choose the last row to type your own answer.
+dismiss, or choose the last row to type your own answer. When the model asks a
+multi-select question the rows are checkboxes (`☑`/`☐`), `enter` toggles one, and
+`s` (or the last row) submits all checked options.
 
 If a turn fails, the error shows as a card with a one-line **suggestion** for
 what to try next; click it to copy the message.
@@ -181,7 +183,8 @@ expander.
 - `task` delegates a read-only investigation to a subagent with its own context.
 - `question` takes over the prompt with a pick list (`↑↓`/`1-6` to choose,
   `enter` to answer, `esc` dismisses, or type your own answer) instead of asking
-  in plain text.
+  in plain text. With `multiSelect` the options become checkboxes (checked rows
+  are filled in a distinct colour), `enter` toggles, and `s` submits the set.
 - Pastes longer than a few lines collapse to a `Pasted N lines` row and send with
   your message (`⌫` on an empty box drops them); the box grows to `inputHeight`
   rows (default 10).

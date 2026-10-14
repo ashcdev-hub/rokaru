@@ -5,7 +5,7 @@ import type { ToolDef } from "./types"
 export const questionTool: ToolDef = {
   name: "question",
   description:
-    "Ask the user a question with 2 to 6 predefined options. ALWAYS use this tool instead of writing questions, numbered lists, or (a)/(b)/(c) choices in your reply text. The user picks one option, types their own answer, or dismisses.",
+    "Ask the user a question with 2 to 6 predefined options. ALWAYS use this tool instead of writing questions, numbered lists, or (a)/(b)/(c) choices in your reply text. The user picks one option, types their own answer, or dismisses. Set multiSelect to true to let the user check several options and submit the set.",
   destructive: false,
   parameters: {
     type: "object",
@@ -22,6 +22,10 @@ export const questionTool: ToolDef = {
           },
           required: ["label"],
         },
+      },
+      multiSelect: {
+        type: "boolean",
+        description: "Allow the user to select more than one option (default false)",
       },
     },
     required: ["question", "options"],

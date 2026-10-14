@@ -217,7 +217,7 @@ export function PermissionBody(props: { request: PermissionRequest }) {
                 <span
                   {...sg(
                     selected() ? getTheme().background : getTheme().dim,
-                    selected() ? getTheme().good : undefined,
+                    selected() ? getTheme().good : getTheme().panelBg,
                   )}
                 >
                   {`${selected() ? " ▶ " : "   "}${labelFor(decision)} `}

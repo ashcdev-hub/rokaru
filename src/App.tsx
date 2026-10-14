@@ -1139,7 +1139,11 @@ export function App() {
         store.submitMultiQuestion()
       } else if (key.name === "escape") {
         key.preventDefault()
+        // Dismissing a question stops the turn: the model shouldn't keep going
+        // (and re-asking) after the user has waved it off.
         store.answerQuestion({ kind: "dismissed" })
+        controller?.abort()
+        store.showToast("question dismissed · stopped", "info")
       } else if (/^[1-9]$/.test(key.name ?? "")) {
         const row = Number(key.name) - 1
         if (row < store.questionRowCount()) {

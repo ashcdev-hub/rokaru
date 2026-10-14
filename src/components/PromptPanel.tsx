@@ -1,14 +1,16 @@
 /** @jsxImportSource @opentui/solid */
 import { Show } from "solid-js"
 import { getTheme, sg } from "../theme"
-import { mode, model, status } from "../store"
+import { mode, model, permission, question, status } from "../store"
 import { Spinner } from "./anim"
 import { Pill } from "./ui"
 
 export function PromptPanel(props: { height?: number; children: any }) {
   const modeLabel = () => (mode() === "plan" ? "Plan" : "Build")
   const modeColour = () => (mode() === "plan" ? getTheme().plan : getTheme().build)
-  const busy = () => status() !== "idle" && status() !== "error"
+  // No spinner while a question/permission is pending — the model is waiting on
+  // the user, not working.
+  const busy = () => status() !== "idle" && status() !== "error" && !question() && !permission()
   return (
     <box
       flexDirection="column"

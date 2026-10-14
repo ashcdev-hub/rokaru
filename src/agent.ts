@@ -19,6 +19,8 @@ let history: ChatMessage[] = []
 let warnedContext = false
 let lastCacheRatio = 0
 let softStop = false
+// Set when the user dismisses a question, so the turn doesn't re-ask.
+let questionDismissed = false
 
 export function resetHistory(): void {
   for (const message of history) {
@@ -435,6 +437,7 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
   const { config } = options
   const turnStart = performance.now()
   softStop = false
+  questionDismissed = false
   store.setTurnStartedAt(turnStart)
   store.setTurnRound(0)
   store.setActiveTools(0)
@@ -478,6 +481,14 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
         const parsed = parseArgs(call.args)
         const questionText = String(parsed?.question ?? "").trim()
         const multiSelect = parsed?.multiSelect === true
+        // Once the user dismisses a question, don't let the turn loop on more
+        // questions (that's what made escaping feel like it did nothing).
+        if (questionDismissed) {
+          const result =
+            "The user skipped an earlier question this turn and does not want more questions. Do NOT call the question tool again — continue with your best judgement or stop, and briefly say what you did."
+          store.updateToolPart(assistantId, call.id, { status: "denied", result, durationMs: performance.now() - startedAt })
+          return result
+        }
         const rawOptions = Array.isArray(parsed?.options) ? parsed.options : []
         const options = rawOptions
           .map((entry: any) =>
@@ -500,8 +511,13 @@ export async function runTurn(options: TurnOptions, userText: string): Promise<v
               ? `Q: ${questionText}\nA: [${answer.labels.join(", ")}]`
               : answer.kind === "custom"
                 ? `Q: ${questionText}\nA (typed by the user): ${answer.text}`
-                : `Q: ${questionText}\nA: the user dismissed the question without answering`
-        store.updateToolPart(assistantId, call.id, { status: "ok", result, durationMs: performance.now() - startedAt })
+                : `Q: ${questionText}\nA: the user dismissed the question; do not ask again — continue with your best judgement or stop and say what you did`
+        if (answer.kind === "dismissed") questionDismissed = true
+        store.updateToolPart(assistantId, call.id, {
+          status: answer.kind === "dismissed" ? "denied" : "ok",
+          result,
+          durationMs: performance.now() - startedAt,
+        })
         return capResult(result)
       } catch (err) {
         if ((err as Error).name === "AbortError") throw err

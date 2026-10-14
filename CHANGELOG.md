@@ -3,6 +3,19 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.16.1] - 2026-10-14
+
+### Fixed
+
+- **Dismissing a question now stops the turn.** Pressing `esc` on a question
+  tool pick list (delivered as an `escape` key on a double-tap) aborts the turn
+  instead of letting the model continue and re-ask. A dismissed question is
+  authoritative for the turn.
+- **Clear "waiting" state.** While a question or permission is pending the footer
+  now shows a static `⏸ waiting for your answer · answer above` (and the prompt
+  hides its spinner), instead of the animated "thinking" bar — the model is
+  waiting on you, not working.
+
 ## [0.16.0] - 2026-10-14
 
 First part of the oMLX performance work: leverage the server's prefill progress,

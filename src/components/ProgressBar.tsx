@@ -14,7 +14,9 @@ import {
   mode,
   modelLimit,
   outputLimit,
+  permission,
   prefill,
+  question,
   reduceMotion,
   status,
   statusDetail,
@@ -104,8 +106,16 @@ export function ProgressBar() {
     if (gitBranch().length > 0) parts.push(`⎇ ${gitBranch()}`)
     const nav = findNav()
     if (nav) parts.push(`find ${nav.at + 1}/${nav.hits.length}`)
-    if (!busy()) parts.push("ctrl+p")
+    if (!busy() && !waiting()) parts.push("ctrl+p")
     return parts.join(" · ")
+  }
+
+  // While a question or permission is pending the model isn't working — it's
+  // waiting on the user, so show that instead of the animated "thinking" bar.
+  const waiting = () => {
+    if (question()) return "waiting for your answer"
+    if (permission()) return "waiting for your approval"
+    return undefined
   }
 
   return (
@@ -128,8 +138,18 @@ export function ProgressBar() {
             </text>
           }
         >
-          <text fg={getTheme().meter}>{cells()}</text>
-          <text fg={getTheme().dim}>{`  ${prefillText() || activity()}   esc stop`}</text>
+          <Show
+            when={waiting()}
+            fallback={
+              <>
+                <text fg={getTheme().meter}>{cells()}</text>
+                <text fg={getTheme().dim}>{`  ${prefillText() || activity()}   esc stop`}</text>
+              </>
+            }
+          >
+            <text fg={getTheme().warn}>{"⏸ "}</text>
+            <text fg={getTheme().dim}>{`  ${waiting()} · answer above`}</text>
+          </Show>
         </Show>
         <Show when={autoApprove()}>
           <text fg={getTheme().warn}>{"  ⚠ allow-all "}</text>

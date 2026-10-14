@@ -16,8 +16,10 @@ coding agent. It reads and edits files, runs commands and plans work.
 
 ## Highlights
 
-- **Fully local.** Only local oMLX models. The one optional network path is the
-  read-only web tools.
+- **Fully local.** Only local oMLX models; prompts, files and edits never leave
+  your machine. The only optional network path is web access, off by default.
+- **Optimised for oMLX.** Tuned for oMLX's streaming protocol, prefix caching and
+  memory-guard behaviour.
 - **Sandboxed.** Shell commands run with **all network denied** and writes
   confined to your workspace; sensitive paths are refused.
 - **RAM-only.** No transcript, history or log touches disk; on exit it's wiped.
@@ -94,10 +96,10 @@ interrupt · `pgup`/`pgdn` scroll · `ctrl+r` reasoning · `ctrl+o` expand tools
 
 ## Optional features
 
-- **Web access (read-only, off by default).** `web_search` finds pages,
-  `web_fetch` reads one as text, and `web_download` saves a file into your
-  workspace. Only `GET` requests; private/loopback/metadata addresses are
-  refused; every redirect is re-checked.
+- **Web access (off by default).** `web_search` finds pages, `web_fetch` reads
+  one as text, and `web_download` saves a file into your workspace. Nothing is
+  ever sent to an arbitrary host, private/loopback/metadata addresses are
+  refused, and every redirect is re-checked.
 - **MCP servers (stdio).** Local MCP servers start disabled each launch and are
   toggled per session from `/mcp`.
 - **Skills.** Reusable instruction packs the model loads on demand from

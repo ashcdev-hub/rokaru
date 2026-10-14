@@ -3,6 +3,14 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.17.1] - 2026-10-14
+
+### Fixed
+
+- **README accuracy.** The web tools are no longer described as strictly
+  read-only now that `web_download` can save files, and the "Optimised for oMLX"
+  highlight is restored.
+
 ## [0.17.0] - 2026-10-14
 
 ### Added

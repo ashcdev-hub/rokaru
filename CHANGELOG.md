@@ -3,6 +3,28 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.15.1] - 2026-10-14
+
+### Added
+
+- **`ctrl+a` copies the whole session** — every message, tool call and result —
+  to the clipboard (also a palette action). The prompt's own `ctrl+a` binding was
+  freed so the shortcut fires while typing.
+
+### Changed
+
+- Removed the thick left bar from the prompt; the `Build`/`Plan` badge already
+  signals the mode.
+- The question card title now reads **`multiple choice`** for multi-select vs
+  **`question`** for single-select, with blank lines separating the options from
+  the prompt text and the key legend.
+- Hid the transcript scrollbar (keyboard scrolling and `/find` remain).
+
+### Removed
+
+- The "Roadmap / ideas" section from the README; it isn't relevant to the public
+  repo and is tracked separately.
+
 ## [0.15.0] - 2026-10-14
 
 Fourth visual/UX pass: prompt and `/` menu polish.

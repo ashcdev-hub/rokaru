@@ -20,6 +20,7 @@ import { copyToClipboard } from "./clipboard"
 import { COMMANDS, matchCommands, orderedMenuCommands, resolveCommandName } from "./commands"
 import { imageDataUrl } from "./image"
 import { applyMention, mentionMatches } from "./fileMentions"
+import { formatTranscript } from "./transcriptText"
 import { friendlyError } from "./errors"
 import { listSnapshots, redoLast, undoLast, sessionChanges, revertChange } from "./undo"
 import { connectServer, disconnectServer } from "./mcp"
@@ -220,7 +221,7 @@ export function App() {
         "keys:  enter send · shift+enter newline · tab plan/build · esc interrupt",
         "       pgup/pgdn · shift+↑↓ scroll transcript · home/end top/bottom",
         "       ctrl+r reasoning · ctrl+o expand tools · ctrl+y copy reply · ctrl+b sidebar",
-        "       ctrl+x cancel running tool · ctrl+p commands · ctrl+c quit",
+        "       ctrl+a copy whole session · ctrl+x cancel running tool · ctrl+p commands · ctrl+c quit",
         "mouse: select any text to copy it to the clipboard",
       ].join("\n"),
     )
@@ -541,6 +542,18 @@ export function App() {
     }
   }
 
+  // Copy the entire session (all messages, tool calls and results) to the
+  // clipboard. Bound to ctrl+a.
+  const copySession = () => {
+    const text = formatTranscript(store.messages(), { workspace: store.workspace(), model: store.model() })
+    if (text.trim().length === 0) {
+      store.showToast("nothing to copy", "info")
+      return
+    }
+    copyToClipboard(text)
+    store.showToast("copied the whole session")
+  }
+
   const copyLastResponse = () => {
     const last = [...store.messages()].reverse().find((m) => m.role === "assistant")
     const committed = last
@@ -614,6 +627,16 @@ export function App() {
       run: () => {
         store.setPalette(false)
         copyLastResponse()
+      },
+    },
+    {
+      label: "copy whole session",
+      description: "copy the full transcript to the clipboard",
+      category: "view",
+      shortcut: "ctrl+a",
+      run: () => {
+        store.setPalette(false)
+        copySession()
       },
     },
     {
@@ -846,6 +869,12 @@ export function App() {
     if (key.ctrl && key.name === "y") {
       key.preventDefault()
       copyLastResponse()
+      return
+    }
+
+    if (key.ctrl && key.name === "a") {
+      key.preventDefault()
+      copySession()
       return
     }
 

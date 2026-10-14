@@ -15,7 +15,7 @@ export function QuestionPanel(props: { request: QuestionRequest }) {
         borderStyle="rounded"
         borderColor={getTheme().accent}
         backgroundColor={getTheme().panelBg}
-        title="question"
+        title={multi() ? "multiple choice" : "question"}
         titleColor={getTheme().accent}
         paddingLeft={1}
         paddingRight={1}
@@ -60,6 +60,7 @@ export function QuestionPanel(props: { request: QuestionRequest }) {
               : ` ${questionIndex() === lastRow() ? "▶" : " "} ${lastRow() + 1}. ✎ type your own answer `}
           </span>
         </text>
+        <text fg={getTheme().dim}>{""}</text>
         <text fg={getTheme().dim}>
           {multi()
             ? `↑↓ move · enter toggle · s submit · 1-${lastRow() + 1} quick · esc dismiss`

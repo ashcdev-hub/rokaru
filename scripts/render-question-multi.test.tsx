@@ -29,9 +29,14 @@ const bgOf = (needle: string): string => {
 const checkedBg = bgOf("src/a.ts")
 const cursorBg = bgOf("src/b.ts")
 const otherCheckedBg = bgOf("src/c.ts")
+const lines = frame.split("\n")
+const submitIdx = lines.findIndex((line) => line.includes("submit ("))
+const legendIdx = lines.findIndex((line) => line.includes("esc dismiss"))
 
 const checks: [string, boolean][] = [
+  ["title says multiple choice", frame.includes("multiple choice")],
   ["shows the question", frame.includes("Which files should I touch?")],
+  ["blank line before the legend", submitIdx >= 0 && legendIdx - submitIdx === 2],
   ["shows the selected count", frame.includes("2 selected")],
   ["checked marker", frame.includes("☑ 1. src/a.ts")],
   ["unchecked marker", frame.includes("☐ 2. src/b.ts")],

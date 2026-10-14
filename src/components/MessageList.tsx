@@ -662,7 +662,13 @@ export function MessageList() {
 
   return (
     <scrollbox
-      ref={(el: ScrollBoxRenderable) => (transcriptBox = el)}
+      ref={(el: ScrollBoxRenderable) => {
+        transcriptBox = el
+        // Hide the built-in scrollbar: keyboard scrolling and /find cover
+        // navigation, and the transcript reads cleaner without it.
+        const bar = (el as unknown as { verticalScrollBar?: { visible: boolean } }).verticalScrollBar
+        if (bar) bar.visible = false
+      }}
       flexGrow={1}
       stickyScroll={true}
       stickyStart="bottom"

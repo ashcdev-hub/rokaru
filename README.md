@@ -102,9 +102,9 @@ Keyboard: `enter` send · `shift+enter` newline · `tab` plan/build · `esc`
 interrupt (a menu offers **stop now** or **finish the current tool, then
 stop**) · `pgup`/`pgdn` and `shift+↑`/`shift+↓` scroll the transcript ·
 `home`/`end` jump to top/bottom · `ctrl+r` reasoning · `ctrl+o` expand tools ·
-`ctrl+y` copy reply · `ctrl+b` sidebar · `ctrl+x` cancel the running tool ·
-`ctrl+↑`/`ctrl+↓` resize the prompt · `ctrl+p` palette. Click a
-`you`/`agent` label or a fenced code block to copy it.
+`ctrl+y` copy reply · `ctrl+a` copy the whole session · `ctrl+b` sidebar ·
+`ctrl+x` cancel the running tool · `ctrl+↑`/`ctrl+↓` resize the prompt ·
+`ctrl+p` palette. Click a `you`/`agent` label or a fenced code block to copy it.
 
 ## Privacy & security
 
@@ -203,9 +203,10 @@ expander.
 ### Transcript & navigation
 
 - Scroll with **`pgup`**/**`pgdn`**, **`shift+↑`**/**`shift+↓`** (by line) or
-  **`home`**/**`end`**; a scrollbar appears when the transcript overflows.
+  **`home`**/**`end`**.
 - Click a **`you`**/**`agent`** label to copy that message, or a fenced **code
-  block** to copy it. `ctrl+y` copies the last reply.
+  block** to copy it. `ctrl+y` copies the last reply, and `ctrl+a` copies the
+  whole session.
 - Each reply ends with a subtle `time · duration · tokens` line.
 - **`/retry`** re-runs your last message and regenerates the reply. **`/changes`**
   lists every file edited this session with a per-file diff and revert.
@@ -397,30 +398,6 @@ the `contrast` palette. Setting the `NO_COLOR` environment variable turns both o
 The API key is resolved from `ROKARU_OMLX_KEY` or `OMLX_LOCAL_KEY`, then the
 macOS Keychain (service `rokaru-omlx`), then the local default `sk-omlx-local`,
 and is never written to disk by rokaru.
-
-## Roadmap / ideas
-
-A running list of improvements under consideration. Shipped work is documented in
-the sections above; nothing here changes rokaru's core promise: fully local,
-RAM-only, and opt-in.
-
-- **Sandbox the post-edit diagnostics command.** It currently runs unsandboxed
-  (`/bin/zsh` with the full environment), unlike the `bash` tool.
-- **Guard writes by sensitive path.** `write_file`/`edit_file` aren't checked
-  against the protected-path list the way reads are.
-- **Fix the dead MCP permission preview.** MCP tools register as
-  `mcp__server__tool`, so the dedicated `mcp_call` preview never fires.
-- **Hot-reload `AGENTS.md`** (and config) instead of caching for the session.
-- **Machine-portable tests.** `scripts/sandbox.test.ts` and
-  `scripts/render-prompt.test.tsx` hardcode this machine's paths.
-- **Headless one-shot mode.** `rokaru -p "…"` for scripted, non-interactive runs.
-- **Custom slash commands.** User-authored prompt templates in
-  `.rokaru/commands/*.md`.
-- **Session checkpoints.** Named snapshots of the whole session's file state.
-- **`/init`.** Generate a starter `AGENTS.md` from the repo layout.
-- **Edit-and-resend / branch** from an earlier user message.
-- **Remote (HTTP) MCP servers**, beyond the current stdio-only support.
-- **Auto-format hook.** Run the project's formatter on changed files after edits.
 
 ## Acknowledgements
 

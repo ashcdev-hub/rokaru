@@ -19,7 +19,6 @@ export function PromptPanel(props: { height?: number; children: any }) {
       borderColor={modeColour()}
     >
       <box flexDirection="row" flexGrow={1} paddingLeft={1} paddingRight={1}>
-        <box width={1} backgroundColor={modeColour()} marginRight={2} />
         <box flexDirection="column" flexGrow={1}>
           {props.children}
           <box flexDirection="row">

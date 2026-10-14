@@ -7,7 +7,11 @@ import { consumeInputPrefill, inputHeightOverride, inputValue, pastedLineCount, 
 import { PromptPanel } from "./PromptPanel"
 
 const bindings: KeyBinding[] = [
-  ...defaultTextareaKeyBindings.filter((b) => b.action !== "submit" && b.action !== "newline"),
+  // Drop submit/newline (we rebind below) and ctrl+a (line-home) so the global
+  // "copy whole session" shortcut can use it.
+  ...defaultTextareaKeyBindings.filter(
+    (b) => b.action !== "submit" && b.action !== "newline" && !(b.ctrl && b.name === "a" && !b.shift),
+  ),
   { name: "return", action: "submit" },
   { name: "kpenter", action: "submit" },
   { name: "return", shift: true, action: "newline" },

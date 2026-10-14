@@ -3,6 +3,14 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.12.1] - 2026-10-14
+
+### Changed
+
+- Reverted the welcome/model picker to the original list (`choose a model …` with
+  context lengths and `↑/↓ · enter`), removing the search box. The startup screen
+  is back to its previous, clearer layout.
+
 ## [0.12.0] - 2026-10-14
 
 Second visual/UX pass: panels and prompts become structured cards. Behaviour is

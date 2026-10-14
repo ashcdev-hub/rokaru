@@ -88,14 +88,6 @@ export const [sessionStartedAt, setSessionStartedAt] = createSignal(0)
 // Per-model output token cap for the current turn (for the progress ETA).
 export const [outputLimit, setOutputLimit] = createSignal(0)
 
-// Model-picker filter state (shared by the startup picker and /model switch).
-export const [pickerQuery, setPickerQuery] = createSignal("")
-export const [pickerIndex, setPickerIndex] = createSignal(0)
-export function resetPicker(): void {
-  setPickerQuery("")
-  setPickerIndex(0)
-}
-
 // Bridge so components (e.g. the empty-state quick actions) can invoke a
 // command/prompt that only App can route. App installs the runner on mount.
 let commandRunner: ((text: string) => void) | undefined

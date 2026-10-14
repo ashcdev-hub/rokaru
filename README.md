@@ -221,8 +221,6 @@ expander.
   shown.
 - The empty transcript offers **clickable quick actions** (commands, themes,
   compact, tune, find, files) so there's no blank page on first run.
-- The startup and **`/model`** pickers are searchable cards: type to filter,
-  `↑`/`↓` to move, `enter` to choose, `esc` to cancel a switch.
 
 ### MCP servers (optional)
 

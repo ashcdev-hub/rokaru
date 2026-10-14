@@ -12,8 +12,7 @@
 </p>
 
 rokaru is a privacy-first TUI that turns a local model served by **oMLX** into a
-coding agent. It reads and edits files, runs commands and plans work — all on
-your machine.
+coding agent. It reads and edits files, runs commands and plans work.
 
 ## Highlights
 

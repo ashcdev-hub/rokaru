@@ -1,5 +1,6 @@
 import { existsSync, unlinkSync, writeFileSync } from "node:fs"
 import { diffLines, type DiffLine } from "./diff"
+import { fileCache } from "./tools/cache"
 
 export interface Snapshot {
   path: string
@@ -24,6 +25,7 @@ export function pushSnapshot(snapshot: Snapshot): void {
 export function clearSnapshots(): void {
   undoStack.length = 0
   redoStack.length = 0
+  fileCache.clear()
 }
 
 export function snapshotCount(): number {
@@ -62,6 +64,7 @@ export function undoLast(): string | undefined {
   if (!snapshot) return undefined
   try {
     applyContent(snapshot.path, snapshot.previous)
+    fileCache.clearFor(snapshot.path)
   } catch (err) {
     undoStack.push(snapshot)
     return `undo failed: ${(err as Error).message}`
@@ -79,6 +82,7 @@ export function redoLast(): string | undefined {
   if (!snapshot) return undefined
   try {
     applyContent(snapshot.path, snapshot.current)
+    fileCache.clearFor(snapshot.path)
   } catch (err) {
     redoStack.push(snapshot)
     return `redo failed: ${(err as Error).message}`
@@ -122,6 +126,7 @@ export function revertChange(path: string): boolean {
   if (!first) return false
   try {
     applyContent(path, first.previous)
+    fileCache.clearFor(path)
   } catch {
     return false
   }

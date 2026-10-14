@@ -3,6 +3,7 @@ import { EMPTY_METRICS, type TurnMetrics } from "./metrics"
 import type { HealthInfo, ModelInfo, ModelStatus } from "./omlx"
 import type { Theme } from "./theme"
 import type { Skill } from "./skills"
+import { fileCache } from "./tools/cache"
 
 export type { Skill } from "./skills"
 
@@ -623,6 +624,7 @@ export function consumeInputPrefill(): string {
 }
 
 export function resetSession(): void {
+  fileCache.clear()
   for (const message of messages()) {
     for (const part of message.parts) {
       if (part.kind === "text" || part.kind === "reasoning") part.text = ""

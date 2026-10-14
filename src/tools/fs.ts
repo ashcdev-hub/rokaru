@@ -3,6 +3,7 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path"
 import { diffLines } from "../diff"
 import { isSensitivePath } from "../sensitive"
 import { pushSnapshot } from "../undo"
+import { fileCache } from "./cache"
 import type { ToolContext, ToolDef } from "./types"
 
 const MAX_READ_CHARS = 200_000
@@ -31,7 +32,12 @@ function readFileText(ctx: ToolContext, input: string): string {
   if (isSensitivePath(target)) throw new Error(`refused: ${target} is in a protected location`)
   const stat = statSync(target)
   if (stat.isDirectory()) throw new Error(`${target} is a directory`)
-  const text = readFileSync(target, "utf8")
+  const cached = fileCache.get(target)
+  const text = cached ?? (() => {
+    const content = readFileSync(target, "utf8")
+    fileCache.set(target, content)
+    return content
+  })()
   if (text.length > MAX_READ_CHARS) {
     return text.slice(0, MAX_READ_CHARS) + `\n… truncated (${text.length - MAX_READ_CHARS} more chars)`
   }
@@ -57,7 +63,12 @@ export const readFileTool: ToolDef = {
     if (isSensitivePath(target)) throw new Error(`refused: ${target} is in a protected location`)
     const stat = statSync(target)
     if (stat.isDirectory()) throw new Error(`${target} is a directory`)
-    const full = readFileSync(target, "utf8")
+    const cached = fileCache.get(target)
+    const full = cached ?? (() => {
+      const content = readFileSync(target, "utf8")
+      fileCache.set(target, content)
+      return content
+    })()
     const offset = Number(args?.offset ?? 0)
     const limit = Number(args?.limit ?? 0)
     if (offset > 0 || limit > 0) {
@@ -117,6 +128,7 @@ export const writeFileTool: ToolDef = {
     pushSnapshot({ path: target, previous: existed ? previous : null, current: content, label: "write" })
     mkdirSync(dirname(target), { recursive: true })
     writeFileSync(target, content)
+    fileCache.clearFor(target)
     try {
       ctx.onDiff?.(
         existed ? diffLines(previous, content) : content.split("\n").map((text) => ({ kind: "add" as const, text })),
@@ -158,6 +170,7 @@ export const editFileTool: ToolDef = {
     const updated = replaceAll ? original.split(oldString).join(newString) : original.replace(oldString, newString)
     pushSnapshot({ path: target, previous: original, current: updated, label: "edit" })
     writeFileSync(target, updated)
+    fileCache.clearFor(target)
     try {
       ctx.onDiff?.(diffLines(original, updated))
     } catch {
@@ -221,7 +234,12 @@ export const grepTool: ToolDef = {
       if (isSensitivePath(full)) continue
       try {
         if (statSync(full).size > 1_000_000) continue
-        const text = readFileSync(full, "utf8")
+        const cached = fileCache.get(full)
+        const text = cached ?? (() => {
+          const content = readFileSync(full, "utf8")
+          fileCache.set(full, content)
+          return content
+        })()
         if (text.includes("\u0000")) continue
         const lines = text.split("\n")
         for (let i = 0; i < lines.length; i++) {

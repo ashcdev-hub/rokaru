@@ -3,6 +3,7 @@ import { join } from "node:path"
 import { diffLines, type DiffLine } from "../diff"
 import { isSensitivePath } from "../sensitive"
 import { pushSnapshot } from "../undo"
+import { fileCache } from "./cache"
 import { assertWritable } from "./fs"
 import type { ToolDef } from "./types"
 
@@ -160,6 +161,7 @@ export const replaceInFilesTool: ToolDef = {
       assertWritable(ctx, file.path)
       pushSnapshot({ path: file.path, previous: file.before, current: file.after, label: "replace" })
       writeFileSync(file.path, file.after)
+      fileCache.clearFor(file.path)
     }
     try {
       ctx.onDiff?.(aggregateDiff(plan.files))

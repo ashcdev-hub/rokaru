@@ -3,6 +3,18 @@
 All notable changes to rokaru. Version is shown on the start screen and in the
 sidebar.
 
+## [0.16.2] - 2026-10-14
+
+### Added
+
+- **Read-tool result cache.** `read_file`, `grep` and the context reader now
+  share a small in-memory cache (100 files, keyed by path and validated against
+  the file's mtime), so re-reading the same file within a session skips the disk
+  round-trip. The cache is invalidated on `write_file`, `edit_file`,
+  `replace_in_files`, any `bash` command, `/undo`/`/redo`/`/changes` revert, and
+  on `/new`. It saves I/O and latency only — the file content still goes to the
+  model.
+
 ## [0.16.1] - 2026-10-14
 
 ### Fixed

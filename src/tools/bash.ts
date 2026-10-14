@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process"
 import { buildSandboxProfile } from "../sandbox"
+import { fileCache } from "./cache"
 import type { ToolDef } from "./types"
 
 const DEFAULT_TIMEOUT_MS = 120_000
@@ -59,6 +60,7 @@ export const bashTool: ToolDef = {
       })
       child.on("close", (code) => {
         clearTimeout(timer)
+        fileCache.clear()
         const combined = [stdout.trimEnd(), stderr.trimEnd() ? `[stderr]\n${stderr.trimEnd()}` : ""]
           .filter(Boolean)
           .join("\n")
